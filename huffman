@@ -1,0 +1,204 @@
+#define _CRT_SECURE_NO_WARNINGS
+#define SIZE 1024
+#define CHARSIZE 256
+
+#include "stdio.h"
+#include "stdlib.h"
+#include "assert.h"
+
+typedef unsigned char uc;
+typedef struct tree {
+	uc symbol;
+	int freq;
+	struct tree* left;
+	struct tree* right;
+	struct tree* next;
+}tree;
+
+void compress(uc* line, FILE* fi, FILE* fo);
+
+void decompess();
+
+void sort(tree** freq);
+
+void swap(tree** freq, tree* el1, tree* el2);
+
+tree* create_list(int* arr, int n);
+
+tree* prev(tree* head, tree* elem);
+
+tree* create_tree(tree* freq);
+
+void free_tree(tree* root);
+
+int main() {
+	FILE *fi = fopen("in.txt", "rt"), *fo = fopen("out.txt", "wt");
+	if (!fi || !fo) {
+		if (fi) fclose(fi);
+		if (fo) fclose(fo);
+		return 1;
+	}
+	uc c, d;
+	uc *s = 0;
+	int n = 0, count;
+	fscanf(fi, "%c", &c);
+	fscanf(fi, "%c", &d);
+	if (feof(fi)) return 0;
+	if (c != 'c' && c != 'd' || d != '\n') {
+		fprintf(fo, "Wrong setting");
+		return 0;
+	}
+	if (c == 'c') {
+		while (!feof(fi)) {
+			n++;
+			s = (char*)realloc(s, SIZE * n);
+			if (!s) {
+				fclose(fi);
+				fclose(fo);
+				return 1;
+			}
+			count = fread(s + SIZE * (n - 1), sizeof(char), SIZE, fi);
+		}
+		*(s + SIZE * (n - 1) + count) = 0;
+		compress(s, fi, fo);
+	}
+	else decompress();
+	free(s);
+	fclose(fi);
+	fclose(fo);
+	return 0;
+}
+
+
+void compress(uc* s, FILE* fi, FILE* fo) {
+	if (!(*s)) return;
+	int symbols[CHARSIZE], i = 0;
+	tree* tmp, *tmp2, *leafs[CHARSIZE];
+	uc *t = s, code = 0;
+	for (i = 0; i < CHARSIZE; i++) symbols[i] = 0;
+	for (; *t; t++) symbols[*t]++;
+	tree* freq = create_list(symbols, 0);
+	sort(&freq);
+	for (tmp = freq; tmp; tmp = tmp->next) leafs[tmp->symbol] = tmp;
+	tree* root = create_tree(freq);
+	i = 0;
+	for (; *s; s++) {
+		for (tmp2 = leafs[*s], tmp = tmp2->next; tmp; tmp2 = tmp2->next, tmp = tmp->next) {
+			if (tmp->right == tmp2) code = code | (1 << i);
+			i++;
+			if (i == 8) {
+				fprintf(fo, "%c", code);
+				code = 0;
+				i = 0;
+			}
+		}
+	}
+	fprintf(fo, "%c", code);
+	free_tree(root);
+}
+
+
+tree* create_list(int* arr, int n) {
+	tree* freq;
+	while (n++ < CHARSIZE && !arr[n]);
+	if (n == CHARSIZE) return 0;
+	freq = (tree*)malloc(sizeof(tree));
+	assert(freq);
+	freq->left = 0;
+	freq->right = 0;
+	freq->symbol = n;
+	freq->freq = arr[n];
+	freq->next = create_list(arr, n);
+	return freq;
+}
+
+
+void sort(tree** freq) {
+	tree* tmp1, *tmp2, *tmp3;
+	for (tmp1 = *freq; tmp1->next;) {
+		for (tmp2 = tmp1->next; tmp2;) {
+			if (tmp1->freq > tmp2->freq) {
+				swap(freq, tmp1, tmp2);
+				tmp3 = tmp1;
+				tmp1 = tmp2;
+				tmp2 = tmp3->next;
+			}
+			else tmp2 = tmp2->next;
+		}
+		tmp1 = tmp1->next;
+	}
+}
+
+
+void swap(tree** freq, tree* l1, tree* l2) {
+	tree *tmp1, *tmp2, *tmp3 = l2->next;
+	if (*freq != l1) {
+		tmp1 = prev(*freq, l1);
+		tmp2 = prev(tmp1, l2);
+		if (tmp1->next != tmp2) {
+			tmp1->next = l2;
+			tmp1->next->next = l1->next;
+			l1->next = tmp3;
+			tmp2->next = l1;
+		}
+		else {
+			tmp3 = l1;
+			tmp1->next = tmp1->next->next;
+			tmp3->next = tmp1->next->next;
+			tmp1->next->next = tmp3;
+		}
+	}
+	else {
+		if ((*freq)->next != l2) {
+			tmp2 = prev(*freq, l2);
+			tmp2->next = (*freq);
+			l2->next = (*freq)->next;
+			(*freq)->next = tmp3;
+		}
+		else {
+			l2->next = (*freq);
+			(*freq)->next = tmp3;
+		}
+		(*freq) = l2;
+	}
+}
+
+
+tree* prev(tree* head, tree* elem) {
+	while (head->next != elem) head = head->next;
+	return head;
+}
+
+
+tree* create_tree(tree* freq) {
+	tree* root = freq, *tmp1 = freq, *tmp2;
+	root = freq;
+	while (tmp1 && tmp1->next) {
+		root = (tree*)malloc(sizeof(tree));
+		assert(root);
+		root->left = tmp1;
+		root->right = tmp1->next;
+		root->freq = tmp1->freq + tmp1->next->freq;
+		root->symbol = 0;
+		tmp2 = root->right;
+		tmp1 = root->right->next;
+		while (tmp1 && tmp1->freq < root->freq) {
+			tmp1 = tmp1->next;
+			tmp2 = tmp2->next;
+		}
+		tmp2->next = root;
+		root->next = tmp1;
+		tmp1 = root->right->next;
+		root->left->next = root->right->next = root;
+	}
+	return root;
+}
+
+
+void free_tree(tree* root) {
+	if (root) {
+		free_tree(root->left);
+		free_tree(root->right);
+		free(root);
+	}
+}
