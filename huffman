@@ -4,7 +4,6 @@
 
 #include "stdio.h"
 #include "stdlib.h"
-#include "assert.h"
 
 typedef unsigned char uc;
 typedef struct tree {
@@ -13,29 +12,36 @@ typedef struct tree {
 	struct tree* left;
 	struct tree* right;
 	struct tree* next;
-}tree;
+}Tree;
 
-void compress(uc* line, FILE* fi, FILE* fo);
+void compress(uc* line, FILE* fo);
 
-void decompess();
+void decompress(uc* s, FILE* fo);
 
-void sort(tree** freq);
+void print_tree(FILE* data, Tree* root);
 
-void swap(tree** freq, tree* el1, tree* el2);
+void sort(Tree** freq);
 
-tree* create_list(int* arr, int n);
+void swap(Tree** freq, Tree* el1, Tree* el2);
 
-tree* prev(tree* head, tree* elem);
+Tree* create_list(int* arr, int n);
 
-tree* create_tree(tree* freq);
+Tree* prev(Tree* head, Tree* elem);
 
-void free_tree(tree* root);
+Tree* create_tree(Tree* freq);
+
+void recreate_tree(Tree* root, FILE* data);
+
+void free_tree(Tree* root);
 
 int main() {
 	FILE *fi = fopen("in.txt", "rt"), *fo = fopen("out.txt", "wt");
 	if (!fi || !fo) {
 		if (fi) fclose(fi);
-		if (fo) fclose(fo);
+		if (fo) {
+			fprintf(fo, "File opening error");
+			fclose(fo);
+		}
 		return 1;
 	}
 	uc c, d;
@@ -48,21 +54,20 @@ int main() {
 		fprintf(fo, "Wrong setting");
 		return 0;
 	}
-	if (c == 'c') {
-		while (!feof(fi)) {
-			n++;
-			s = (char*)realloc(s, SIZE * n);
-			if (!s) {
-				fclose(fi);
-				fclose(fo);
-				return 1;
-			}
-			count = fread(s + SIZE * (n - 1), sizeof(char), SIZE, fi);
+	while (!feof(fi)) {
+		n++;
+		s = (uc*)realloc(s, SIZE * n);
+		if (!s) {
+			fprintf(fo, "Memory allocation error");
+			fclose(fi);
+			fclose(fo);
+			return 1;
 		}
-		*(s + SIZE * (n - 1) + count) = 0;
-		compress(s, fi, fo);
+		count = fread(s + SIZE * (n - 1), sizeof(char), SIZE, fi);
 	}
-	else decompress();
+	*(s + SIZE * (n - 1) + count) = 0;
+	if (c == 'c') compress(s, fo);
+	else decompress(s, fo);
 	free(s);
 	fclose(fi);
 	fclose(fo);
@@ -70,51 +75,80 @@ int main() {
 }
 
 
-void compress(uc* s, FILE* fi, FILE* fo) {
+void compress(uc* s, FILE* fo) {
+	FILE* data = fopen("tree.txt", "wt");
+	if (!data) {
+		fprintf(fo, "File opening error");
+		return;
+	}
 	if (!(*s)) return;
-	int symbols[CHARSIZE], i = 0;
-	tree* tmp, *tmp2, *leafs[CHARSIZE];
+	int symbols[CHARSIZE], i = 0, j = 0;
+	Tree* tmp1, *tmp2, *leafs[CHARSIZE];
 	uc *t = s, code = 0;
 	for (i = 0; i < CHARSIZE; i++) symbols[i] = 0;
 	for (; *t; t++) symbols[*t]++;
-	tree* freq = create_list(symbols, 0);
+	Tree* freq = create_list(symbols, 0);
+	if (!freq) {
+		fprintf(fo, "Memory allocation error");
+		return;
+	}
 	sort(&freq);
-	for (tmp = freq; tmp; tmp = tmp->next) leafs[tmp->symbol] = tmp;
-	tree* root = create_tree(freq);
+	for (tmp1 = freq; tmp1; tmp1 = tmp1->next) leafs[tmp1->symbol] = tmp1;
+	Tree* root = create_tree(freq);
+	if (!root) {
+		fprintf(fo, "Memory allocation error");
+		return;
+	}
 	i = 0;
 	for (; *s; s++) {
-		for (tmp2 = leafs[*s], tmp = tmp2->next; tmp; tmp2 = tmp2->next, tmp = tmp->next) {
-			if (tmp->right == tmp2) code = code | (1 << i);
+		for (tmp2 = leafs[*s], tmp1 = tmp2->next; tmp1; tmp2 = tmp2->next, tmp1 = tmp1->next) {
+			if (tmp1->right == tmp2) code = code | (1 << j);
+			j++;
 			i++;
 			if (i == 8) {
 				fprintf(fo, "%c", code);
 				code = 0;
 				i = 0;
+				j = 0;
 			}
 		}
+		if (*(s + 1)) {
+			code <<= min(j, 7 - i);
+			j = 0;
+		}
 	}
-	fprintf(fo, "%c", code);
+	if (i) {
+		fprintf(fo, "%c", code << (8 - i));
+		fprintf(data, "%d\n", 8 - i);
+	}
+	else fprintf(data, "%d\n", 0);
+	fprintf(data, "%d\n", root->symbol);
+	print_tree(data, root);
 	free_tree(root);
 }
 
 
-tree* create_list(int* arr, int n) {
-	tree* freq;
+Tree* create_list(int* arr, int n) {
+	static _Bool is_error = 0;
+	Tree* freq;
 	while (n++ < CHARSIZE && !arr[n]);
 	if (n == CHARSIZE) return 0;
-	freq = (tree*)malloc(sizeof(tree));
-	assert(freq);
-	freq->left = 0;
-	freq->right = 0;
+	freq = (Tree*)malloc(sizeof(Tree));
+	if (!freq) {
+		is_error = 1;
+		return 0;
+	}
+	freq->right = freq->left = 0;
 	freq->symbol = n;
 	freq->freq = arr[n];
 	freq->next = create_list(arr, n);
+	if (is_error) return 0;
 	return freq;
 }
 
 
-void sort(tree** freq) {
-	tree* tmp1, *tmp2, *tmp3;
+void sort(Tree** freq) {
+	Tree* tmp1, *tmp2, *tmp3;
 	for (tmp1 = *freq; tmp1->next;) {
 		for (tmp2 = tmp1->next; tmp2;) {
 			if (tmp1->freq > tmp2->freq) {
@@ -130,8 +164,8 @@ void sort(tree** freq) {
 }
 
 
-void swap(tree** freq, tree* l1, tree* l2) {
-	tree *tmp1, *tmp2, *tmp3 = l2->next;
+void swap(Tree** freq, Tree* l1, Tree* l2) {
+	Tree *tmp1, *tmp2, *tmp3 = l2->next;
 	if (*freq != l1) {
 		tmp1 = prev(*freq, l1);
 		tmp2 = prev(tmp1, l2);
@@ -164,18 +198,17 @@ void swap(tree** freq, tree* l1, tree* l2) {
 }
 
 
-tree* prev(tree* head, tree* elem) {
+Tree* prev(Tree* head, Tree* elem) {
 	while (head->next != elem) head = head->next;
 	return head;
 }
 
 
-tree* create_tree(tree* freq) {
-	tree* root = freq, *tmp1 = freq, *tmp2;
-	root = freq;
+Tree* create_tree(Tree* freq) {
+	Tree* root = freq, *tmp1 = freq, *tmp2;
 	while (tmp1 && tmp1->next) {
-		root = (tree*)malloc(sizeof(tree));
-		assert(root);
+		root = (Tree*)malloc(sizeof(Tree));
+		if (!root) return 0;
 		root->left = tmp1;
 		root->right = tmp1->next;
 		root->freq = tmp1->freq + tmp1->next->freq;
@@ -195,7 +228,79 @@ tree* create_tree(tree* freq) {
 }
 
 
-void free_tree(tree* root) {
+void print_tree(FILE* data, Tree* root) {
+	if (root->left) {
+		fprintf(data, "%d %d\n", root->left->symbol, root->right->symbol);
+		print_tree(data, root->left);
+		print_tree(data, root->right);
+	}
+}
+
+
+void decompress(uc* s, FILE* fo) {
+	FILE* data = fopen("tree.txt", "rt");
+	int num_extra_bits, i = 7;
+	uc last_sym;
+	Tree* root = (Tree*)malloc(sizeof(Tree)), *tmp;
+	if (!data || !root) {
+		if (!data) {
+			fprintf(fo, "File opening error");
+			fclose(data);
+		}
+		else fprintf(fo, "Memory allocation error");
+		return;
+	}
+	fscanf(data, "%d", &num_extra_bits);
+	if (feof(data)) return;
+	fscanf(data, "%hhd", &(root->symbol));
+	recreate_tree(root, data);
+	tmp = root;
+	while (*(s + 1)) {
+		if (i < 0) {
+			s++;
+			i = 7;
+		}
+		if (tmp->symbol) {
+			fprintf(fo, "%c", tmp->symbol);
+			tmp = root;
+			continue;
+		}
+		if (*s & (1 << i)) tmp = tmp->right;
+		else tmp = tmp->left;
+		i--;
+	}
+	last_sym = *s >> num_extra_bits;
+	i = 7 - num_extra_bits;
+	while (i >= 0) {
+		if (tmp->symbol) {
+			fprintf(fo, "%c", tmp->symbol);
+			tmp = root;
+			continue;
+		}
+		if (last_sym & (1 << i)) tmp = tmp->right;
+		else tmp = tmp->left;
+		i--;
+	}
+	fclose(data);
+	free_tree(root);
+}
+
+
+void recreate_tree(Tree* root, FILE* data) {
+	if (root->symbol) {
+		root->left = root->right = 0;
+		return;
+	}
+	root->left = (Tree*)malloc(sizeof(Tree));
+	root->right = (Tree*)malloc(sizeof(Tree));
+	fscanf(data, "%hhd", &(root->left->symbol));
+	fscanf(data, "%hhd", &(root->right->symbol));
+	recreate_tree(root->left, data);
+	recreate_tree(root->right, data);
+}
+
+
+void free_tree(Tree* root) {
 	if (root) {
 		free_tree(root->left);
 		free_tree(root->right);
