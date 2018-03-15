@@ -1,5 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS
-#define SIZE 1024
+#define SIZE 100000
 #define CHARSIZE 256
 
 #include "stdio.h"
