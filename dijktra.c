@@ -19,7 +19,9 @@ void dijktra_path(int** graph, int num_vertices, int begin, int end, FILE* fo);
 
 void search_paths(int** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int start);
 
-void print_paths(_Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo);
+void print_paths(int** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo);
+
+_Bool count_paths();
 
 int main() {
 	FILE* fi = fopen("in.txt", "rt"), *fo = fopen("out.txt", "wt");
@@ -123,7 +125,7 @@ void dijktra_path(int** graph, int num_vertices, int begin, int end, FILE* fo) {
 	}
 	distances[s] = 0;
 	search_paths(graph, isv, distances, parents, num_vertices, s);
-	print_paths(isv, distances, num_vertices, parents, s, f, fo);
+	print_paths(graph, isv, distances, parents, num_vertices, s, f, fo);
 	free(isv);
 	free(distances);
 	free(parents);
@@ -141,39 +143,43 @@ void search_paths(int** graph, _Bool* isv, ui* distances, ui* parents, int num_v
 			if (!isv[i]) {
 				if (graph[min][i] != infinity) {
 					path = graph[min][i] + distances[min];
-					if (path < (long long)distances[i] || distances[i] == infinity) distances[i] = path;
-					if (distances[i] < min2 && distances[i] != infinity) {
-						min1 = i;
-						min2 = distances[i];
+					if (path < (long long)distances[i] || distances[i] == infinity) {
+						distances[i] = path;
+						parents[i] = min;
 					}
 				}
-				if (min1 == min) {
-					for (i = 0; i < num_vertices; i++) {
-						if (distances[i] >= INFINITY) isv[i] = 1;
-					}
-					return;
+				if (distances[i] < min2 && distances[i] != infinity) {
+					min1 = i;
+					min2 = distances[i];
 				}
-				parents[min1] = min;
-				min = min1;
 			}
 		}
+		if (min1 == min) {
+			for (i = 0; i < num_vertices; i++) {
+				if (distances[i] >= INFINITY) isv[i] = 1;
+			}
+			return;
+		}
+		parents[min1] = min;
+		min = min1;
 	}
 }
 
+  
 
-void print_paths(_Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo) {
+
+
+void print_paths(int** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo) {
 	int i;
 	for (i = 0; i < num_vertices; i++) {
 		if (!isv[i]) fprintf(fo, "oo ");
-		else if (distances[i] == INFINITY) fprintf(fo, "INT_MAX+ ");
+		else if (distances[i] >= INFINITY) fprintf(fo, "INT_MAX+ ");
 		else  fprintf(fo, "%d ", distances[i]);
 	}
 	fprintf(fo, "\n");
-	for (i = f; isv[i] && i != s; i = parents[i]);
-	if (i != s) fprintf(fo, "no path");
-	else if (distances[f] != INFINITY) {
-		for (i = f; isv[i] && i != s; i = parents[i]) fprintf(fo, "%d ", i + 1);
-		fprintf(fo, "%d", s + 1);
+	if (!isv[f]) fprintf(fo, "no path");
+	else if (distances[f] < INFINITY) {
+		for (i = f; i != s; i = parents[i]) fprintf(fo, "%d ", i + 1);
+		fprintf(fo, "%d", i + 1);
 	}
-	else fprintf(fo, "overflow");
 }
