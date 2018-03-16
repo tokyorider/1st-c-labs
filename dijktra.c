@@ -17,11 +17,9 @@ void free_graph(int** graph, int num_vertices);
 
 void dijktra_path(int** graph, int num_vertices, int begin, int end, FILE* fo);
 
-_Bool search_paths(int** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int start, int end);
+void search_paths(int** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int start);
 
-int mark_neighbours(int** graph, _Bool* isv, ui* distances, ui* parents, ui i, int num_vertices, ui parent, int counter, int end);
-
-void print_paths(_Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, _Bool l, FILE* fo);
+void print_paths(_Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo);
 
 int main() {
 	FILE* fi = fopen("in.txt", "rt"), *fo = fopen("out.txt", "wt");
@@ -114,7 +112,7 @@ void dijktra_path(int** graph, int num_vertices, int begin, int end, FILE* fo) {
 	if (!(isv && distances && parents)) {
 		fprintf(fo, "Memory allocation error");
 		if (distances) free(distances);
-	    if (isv) free(isv);
+		if (isv) free(isv);
 		if (parents) free(parents);
 		return;
 	}
@@ -122,20 +120,19 @@ void dijktra_path(int** graph, int num_vertices, int begin, int end, FILE* fo) {
 	for (i = 0; i < num_vertices; i++) {
 		distances[i] = infinity;
 		isv[i] = 0;
-		parents[i] = INFINITY;
 	}
 	distances[s] = 0;
-	_Bool l = search_paths(graph, isv, distances, parents, num_vertices, s, f);
-	print_paths(isv, distances, parents, num_vertices, s, f, l, fo);
+	search_paths(graph, isv, distances, parents, num_vertices, s);
+	print_paths(isv, distances, num_vertices, parents, s, f, fo);
 	free(isv);
 	free(distances);
 	free(parents);
 }
 
 
-_Bool search_paths(int** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int start, int end) {
+void search_paths(int** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int start) {
 	ui min2;
-	int min = start, min1 = start, i, n = num_vertices, paths_counter = 0;
+	int min = start, min1 = start, i, n = num_vertices;
 	long long path;
 	while (n-- > 0) {
 		isv[min] = 1;
@@ -144,41 +141,27 @@ _Bool search_paths(int** graph, _Bool* isv, ui* distances, ui* parents, int num_
 			if (!isv[i]) {
 				if (graph[min][i] != infinity) {
 					path = graph[min][i] + distances[min];
-					if (path < (long long)distances[i] || distances[i] == infinity) distances[i] = (ui)path;
-					if (distances[i] >= INFINITY) paths_counter = mark_neighbours(graph, isv, distances, parents, i, num_vertices, min, paths_counter, end);
+					if (path < (long long)distances[i] || distances[i] == infinity) distances[i] = path;
+					if (distances[i] < min2 && distances[i] != infinity) {
+						min1 = i;
+						min2 = distances[i];
+					}
 				}
-				if (distances[i] < min2 && distances[i] != infinity) {
-					min1 = i;
-					min2 = distances[i];
+				if (min1 == min) {
+					for (i = 0; i < num_vertices; i++) {
+						if (distances[i] >= INFINITY) isv[i] = 1;
+					}
+					return;
 				}
+				parents[min1] = min;
+				min = min1;
 			}
 		}
-		if (min1 == min) {
-			if (paths_counter > 1) return 0;
-			return 1;
-		}
-		parents[min1] = min;
-		min = min1;
 	}
-	return 1;
 }
 
 
-int mark_neighbours(int** graph, _Bool* isv, ui* distances, ui* parents,  ui i, int num_vertices, ui parent, int counter, int end){
-	isv[i] = 1;
-	parents[i] = parent;
-	distances[i] = INFINITY;
-	for (int j = 0; j < num_vertices; j++) {
-		if (graph[i][j] != infinity) {
-			if (j == end) counter++;
-			if (distances[j] == infinity) counter = mark_neighbours(graph, isv, distances, parents, j, num_vertices, i, counter, end);
-		}
-	}
-	return counter;
-}
-
-
-void print_paths(_Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, _Bool l, FILE* fo) {
+void print_paths(_Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo) {
 	int i;
 	for (i = 0; i < num_vertices; i++) {
 		if (!isv[i]) fprintf(fo, "oo ");
@@ -188,7 +171,7 @@ void print_paths(_Bool* isv, ui* distances, ui* parents, int num_vertices, int s
 	fprintf(fo, "\n");
 	for (i = f; isv[i] && i != s; i = parents[i]);
 	if (i != s) fprintf(fo, "no path");
-	else if (distances[f] != INFINITY || l) {
+	else if (distances[f] != INFINITY) {
 		for (i = f; isv[i] && i != s; i = parents[i]) fprintf(fo, "%d ", i + 1);
 		fprintf(fo, "%d", s + 1);
 	}
