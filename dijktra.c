@@ -230,9 +230,11 @@ int count(ui** graph, _Bool* isv, int* num_paths, int num_vertices, int vertice,
 				graph[i][vertice] = INFINITY;
 				c = count(graph, isv, num_paths, num_vertices, i, end);
 				num_paths[vertice] += c;
+				if (c >= 2) return 2;
 				isv[i] = 1;
 			}
 		}
 	}
 	return c;
+}eturn c;
 }
