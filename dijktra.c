@@ -16,15 +16,15 @@ void free_graph(ui** graph, int num_vertices);
 
 void dijktra_path(ui** graph, int num_vertices, int start, int end, FILE* fo);
 
-void search_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int start);
+int search_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int start, int finish);
 
-void mark_neighbours(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices);
+int mark_neighbours(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int finish, int l);
 
-void print_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo);
+void print_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo, int l);
 
 int count_paths(ui** graph, _Bool* isv, int num_vertices, int start, int end);
 
-int count(ui** graph, _Bool* isv, int* num_paths, int num_vertices, int vertice, int end);
+int count(ui** graph, _Bool* isv, int* num_paths, int num_vertices, int vertice);
 
 int main() {
 	FILE* fi = fopen("in.txt", "rt"), *fo = fopen("out.txt", "wt");
@@ -53,7 +53,7 @@ int main() {
 }
 
 
-void create_graph(int num_vertices, int num_edges, int start, int end, FILE* fi, FILE* fo) {
+void create_graph(int num_vertices, int num_edges, int start, int finish, FILE* fi, FILE* fo) {
 	int i, j;
 	ui** graph = (ui**)malloc(sizeof(ui*) * num_vertices);
 	if (!graph) {
@@ -73,7 +73,7 @@ void create_graph(int num_vertices, int num_edges, int start, int end, FILE* fi,
 		graph[i][i] = 0;
 	}
 	if(!fill_graph(graph, num_vertices, num_edges, fi, fo)) return;
-	dijktra_path(graph, num_vertices, start, end, fo);
+	dijktra_path(graph, num_vertices, start, finish, fo);
 	free_graph(graph, num_vertices);
 }
 
@@ -127,17 +127,17 @@ void dijktra_path(ui** graph, int num_vertices, int start, int end, FILE* fo) {
 		isv[i] = 0;
 	}
 	distances[s] = 0;
-	search_paths(graph, isv, distances, parents, num_vertices, s);
-	print_paths(graph, isv, distances, parents, num_vertices, s, f, fo);
+	int l = search_paths(graph, isv, distances, parents, num_vertices, s, f);
+	print_paths(graph, isv, distances, parents, num_vertices, s, f, fo, l);
 	free(isv);
 	free(distances);
 	free(parents);
 }
 
 
-void search_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int start) {
+int search_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int start, int finish) {
 	ui min2;
-	int min = start, min1 = start, i, n = num_vertices;
+	int min = start, min1 = start, i, n = num_vertices, l = 0;
 	long long path;
 	while (n-- > 0) {
 		isv[min] = 1;
@@ -153,6 +153,7 @@ void search_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_ve
 					if (path >= INFINITY && distances[i] == INFINITY) {
 						parents[i] = min;
 						isv[i] = 1;
+						if (i == finish) l++;
 					}
 				}
 				if (distances[i] < min2 && !isv[i]) {
@@ -162,15 +163,18 @@ void search_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_ve
 			}
 		}
 		if (min1 == min) {
-			mark_neighbours(graph, isv, distances, parents, num_vertices);
-			return;
+			if (distances[finish] < INFINITY) l = 0;
+			else l = mark_neighbours(graph, isv, distances, parents, num_vertices, finish, l);
+			return l;
 		}
 		min = min1;
 	}
+	if (distances[finish] < INFINITY) l = 0;
+	return l;
 }
 
 
-void mark_neighbours(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices) {
+int mark_neighbours(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int finish, int l) {
 	int i, j;
 	for (i = 0; i < num_vertices; i++) {
 		if (distances[i] >= INFINITY && isv[i]) {
@@ -179,15 +183,17 @@ void mark_neighbours(ui** graph, _Bool* isv, ui* distances, ui* parents, int num
 					isv[j] = 1;
 					distances[j] = INFINITY;
 					parents[j] = i;
+					if (j == finish) l++;
 				}
 			}
 		}
 	}
+	return l;
 }
 
   
-void print_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo) {
-	int i, l;
+void print_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo, int l) {
+	int i;
 	for (i = 0; i < num_vertices; i++) {
 		if (!isv[i]) fprintf(fo, "oo ");
 		else if (distances[i] >= INFINITY) fprintf(fo, "INT_MAX+ ");
@@ -199,6 +205,7 @@ void print_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_ver
 		for (i = f; i != s; i = parents[i]) fprintf(fo, "%d ", i + 1);
 		fprintf(fo, "%d", i + 1);
 	}
+	else if (l > 1) fprintf(fo, "overflow");
 	else {
 		l = count_paths(graph, isv, num_vertices, s, f);
 		if (l == 2) fprintf(fo, "overflow");
@@ -211,24 +218,24 @@ void print_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_ver
 }
 
 
-int count_paths(ui** graph, _Bool* isv, int num_vertices, int start, int end) {
+int count_paths(ui** graph, _Bool* isv, int num_vertices, int start, int finish) {
 	int* num_paths = (int*)malloc(sizeof(int) * num_vertices), i;
 	if (!num_paths) return 0;
 	for (i = 0; i < num_vertices; i++) num_paths[i] = isv[i] = 0;
 	num_paths[start] =  isv[start] = 1;
-	count(graph, isv, num_paths, num_vertices, end, end);
-	return num_paths[end] > 1?2:1;
+	count(graph, isv, num_paths, num_vertices, finish);
+	return num_paths[finish] > 1?2:1;
 }
 
 
-int count(ui** graph, _Bool* isv, int* num_paths, int num_vertices, int vertice, int end) {
+int count(ui** graph, _Bool* isv, int* num_paths, int num_vertices, int vertice) {
 	int i, c;
 	if (isv[vertice]) return num_paths[vertice];
 	else {
 		for (i = 0; i < num_vertices; i++) {
 			if (graph[vertice][i] != INFINITY && vertice != i) {
 				graph[i][vertice] = INFINITY;
-				c = count(graph, isv, num_paths, num_vertices, i, end);
+				c = count(graph, isv, num_paths, num_vertices, i);
 				num_paths[vertice] += c;
 				if (c >= 2) return 2;
 				isv[i] = 1;
