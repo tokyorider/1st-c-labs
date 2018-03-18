@@ -236,5 +236,4 @@ int count(ui** graph, _Bool* isv, int* num_paths, int num_vertices, int vertice,
 		}
 	}
 	return c;
-}eturn c;
 }
