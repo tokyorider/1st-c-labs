@@ -72,7 +72,7 @@ void create_graph(int num_vertices, int num_edges, int start, int finish, FILE* 
 		for (j = 0; j < num_vertices; j++) graph[i][j] = INFINITY;
 		graph[i][i] = 0;
 	}
-	if(!fill_graph(graph, num_vertices, num_edges, fi, fo)) return;
+	if (!fill_graph(graph, num_vertices, num_edges, fi, fo)) return;
 	dijktra_path(graph, num_vertices, start, finish, fo);
 	free_graph(graph, num_vertices);
 }
@@ -80,11 +80,9 @@ void create_graph(int num_vertices, int num_edges, int start, int finish, FILE* 
 
 _Bool fill_graph(ui** graph, int num_vertices, int num_edges, FILE* fi, FILE* fo) {
 	int i, j;
-    long long ln;
+	long long ln;
 	while (!feof(fi) && num_edges-- > 0) {
-		fscanf(fi, "%d", &i);
-		fscanf(fi, "%d", &j);
-		fscanf(fi, "%lld", &ln);
+		fscanf(fi, "%d%d%lld", &i, &j, &ln);
 		if (i < 1 || i > num_vertices || j < 1 || j > num_vertices || ln >= INFINITY || ln < 0) {
 			if (ln >= INFINITY || ln < 0) fprintf(fo, "bad length");
 			else fprintf(fo, "bad vertex");
@@ -163,8 +161,8 @@ int search_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_ver
 			}
 		}
 		if (min1 == min) {
+			l = mark_neighbours(graph, isv, distances, parents, num_vertices, finish, l);
 			if (distances[finish] < INFINITY) l = 0;
-			else l = mark_neighbours(graph, isv, distances, parents, num_vertices, finish, l);
 			return l;
 		}
 		min = min1;
@@ -191,7 +189,7 @@ int mark_neighbours(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_
 	return l;
 }
 
-  
+
 void print_paths(ui** graph, _Bool* isv, ui* distances, ui* parents, int num_vertices, int s, int f, FILE* fo, int l) {
 	int i;
 	for (i = 0; i < num_vertices; i++) {
@@ -222,9 +220,9 @@ int count_paths(ui** graph, _Bool* isv, int num_vertices, int start, int finish)
 	int* num_paths = (int*)malloc(sizeof(int) * num_vertices), i;
 	if (!num_paths) return 0;
 	for (i = 0; i < num_vertices; i++) num_paths[i] = isv[i] = 0;
-	num_paths[start] =  isv[start] = 1;
+	num_paths[start] = isv[start] = 1;
 	count(graph, isv, num_paths, num_vertices, finish);
-	return num_paths[finish] > 1?2:1;
+	return num_paths[finish] > 1 ? 2 : 1;
 }
 
 
