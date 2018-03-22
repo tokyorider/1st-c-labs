@@ -57,7 +57,7 @@ void create_graph(int num_vertices, int num_edges, FILE* fi, FILE* fo) {
 		fprintf(fo, "Memory allocation error");
 		return;
 	}
-	int i;
+	short int i;
 	for (i = 0; i < num_vertices; i++) {
 		Graph[i].num_adj_in = Graph[i].num_adj_out = 0;
 		Graph[i].adj = 0;
@@ -72,7 +72,7 @@ void create_graph(int num_vertices, int num_edges, FILE* fi, FILE* fo) {
 
 
 _Bool fill_graph(Vertex* Graph, int num_vertices, int num_edges, FILE* fi, FILE* fo) {
-	int i, j;
+	short int i, j;
 	while (num_edges-- > 0) {
 		if (fscanf(fi, "%d%d", &i, &j) < 2) {
 			fprintf(fo, "bad number of lines");
@@ -96,7 +96,7 @@ _Bool fill_graph(Vertex* Graph, int num_vertices, int num_edges, FILE* fi, FILE*
 
 
 void free_graph(Vertex* Graph, int num_vertices) {
-	for (int i = 0; i < num_vertices; i++) {
+	for (short int i = 0; i < num_vertices; i++) {
 		if (Graph[i].num_adj_out) free(Graph[i].adj);
 	}
 	free(Graph);
@@ -104,8 +104,7 @@ void free_graph(Vertex* Graph, int num_vertices) {
 
 
 void top_sort(Vertex* Graph, int num_vertices, FILE* fi, FILE* fo) {
-	short int i = 0, j; 
-	short int v_min = -1;
+	short int i = 0, j, v_min = -1;
 	_Bool* isd = (_Bool*)malloc(sizeof(_Bool) * num_vertices);
 	if (!isd) {
 		fprintf(fo, "Memory allocation error");
@@ -135,7 +134,6 @@ void top_sort(Vertex* Graph, int num_vertices, FILE* fi, FILE* fo) {
 
 
 void fix_edges(Vertex* Graph, int num_vertices, short int vertex) {
-	short int ln = Graph[vertex].num_adj_out, j;
-	short int* neighbours = Graph[vertex].adj;
+	short int ln = Graph[vertex].num_adj_out, j, *neighbours = Graph[vertex].adj;
 	for (j = 0; j < ln; j++) Graph[neighbours[j]].num_adj_in--;
 }
