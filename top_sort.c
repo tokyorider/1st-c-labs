@@ -74,7 +74,7 @@ void create_graph(int num_vertices, int num_edges, FILE* fi, FILE* fo) {
 _Bool fill_graph(Vertex* Graph, int num_vertices, int num_edges, FILE* fi, FILE* fo) {
 	short int i, j;
 	while (num_edges-- > 0) {
-		if (fscanf(fi, "%d%d", &i, &j) < 2) {
+		if (fscanf(fi, "%hd%hd", &i, &j) < 2) {
 			fprintf(fo, "bad number of lines");
 			return 0;
 		}
@@ -126,7 +126,7 @@ void top_sort(Vertex* Graph, int num_vertices, FILE* fi, FILE* fo) {
 			return;
 		}
 		isd[v_min] = 1;
-		fprintf(fo, "%d ", v_min + 1);
+		fprintf(fo, "%hd ", v_min + 1);
 		v_min = -1;
 	}
 	free(isd);
