@@ -104,17 +104,15 @@ void free_graph(Vertex* Graph, int num_vertices) {
 
 
 void top_sort(Vertex* Graph, int num_vertices, FILE* fi, FILE* fo) {
-	short int *new_num = (short int*)malloc(sizeof(short int) * num_vertices), i = 0, j; 
+	short int i = 0, j; 
 	short int v_min = -1;
 	_Bool* isd = (_Bool*)malloc(sizeof(_Bool) * num_vertices);
-	if (!(new_num && isd)) {
-		if (isd) free(isd);
-		else if (new_num) free(new_num);
+	if (!isd) {
 		fprintf(fo, "Memory allocation error");
 		return;
 	}
 	for (j = 0; j < num_vertices; j++) isd[j] = 0;
-	while (i < num_vertices) {
+	while (i++ < num_vertices) {
 		for (j = 0; j < num_vertices; j++) {
 			if (!(Graph[j].num_adj_in || isd[j])) {
 				v_min = j;
@@ -123,16 +121,16 @@ void top_sort(Vertex* Graph, int num_vertices, FILE* fi, FILE* fo) {
 			}
 		}
 		if (v_min == -1) {
-			fprintf(fo, "impossible to sort");
+			fclose(fo);
+			fo = fopen("out.txt", "wt");
+			if (fo) fprintf(fo, "impossible to sort");
 			return;
 		}
 		isd[v_min] = 1;
-		new_num[i++] = v_min + 1;
+		fprintf(fo, "%d ", v_min + 1);
 		v_min = -1;
 	}
-	for (i = 0; i < num_vertices; i++) fprintf(fo, "%d ", new_num[i]);
 	free(isd);
-	free(new_num);
 }
 
 
