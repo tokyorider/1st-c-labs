@@ -67,6 +67,7 @@ void create_graph(int num_vertices, int num_edges, FILE* fi, FILE* fo) {
 		return;
 	}
 	top_sort(Graph, num_vertices, fi, fo);
+	free_graph(Graph, num_vertices);
 }
 
 
