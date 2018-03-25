@@ -1,6 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS 
 #define test(a, b) ((a) > 5000 || (a) < 0 || (b) > ((a) * (a+1))/2 || (b) < 0?0:1)
-#define INFINITY 2147483648
 
 typedef struct Edge {
 	short v1;
