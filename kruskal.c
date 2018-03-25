@@ -84,8 +84,8 @@ _Bool fill_graph(Edge* Graph, int num_v, int num_e, FILE* inp, FILE* outp) {
 			fprintf(outp, "bad number of lines");
 			return 0;
 		}
-		if (i < 1 || i-- > num_v || j < 1 || j-- > num_v || w >= INFINITY || w < 0) {
-			if (w >= INFINITY || w < 0) fprintf(outp, "bad length");
+		if (i < 1 || i-- > num_v || j < 1 || j-- > num_v || w > INT_MAX || w < 0) {
+			if (w > INT_MAX || w < 0) fprintf(outp, "bad length");
 			else fprintf(outp, "bad vertex");
 			return 0;
 		}
@@ -107,7 +107,7 @@ void create_frame(Edge* Graph, int num_v, int num_e, FILE* outp) {
 	}
 	for (i = 0; i < num_v; i++) isv[i] = 0;
 	isv[Graph[0].v1] = 1;
-	if (!num_e || !conn(Graph, num_v, num_e , isv)) {
+	if (!conn(Graph, num_v, num_e , isv)) {
 		fprintf(outp, "no spanning tree");
 		return;
 	}
