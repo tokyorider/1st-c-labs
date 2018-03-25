@@ -192,6 +192,5 @@ short fixcolours(SDS* vertices, short* colours, int num_v, short i, short j) {
 		}
 	}
 	colours[max] += colours[min];
-	colours[min] = 0;
 	return colours[max];
 }
