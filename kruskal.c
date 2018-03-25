@@ -6,10 +6,6 @@ typedef struct Edge {
 	short v2;
 	int weight;
 } Edge;
-typedef struct SDS {
-	short vertex;
-	short colour;
-} SDS;
 
 #include "stdio.h" 
 #include "stdlib.h"
@@ -23,11 +19,11 @@ _Bool conn(Edge* Graph, int num_v, int num_e, _Bool* isv);
 
 void create_frame(Edge* Graph, int num_v, int num_e, FILE* outp);
 
-SDS* init_set(int num_v, FILE* outp);
+short* init_set(int num_v, FILE* outp);
 
-void build(Edge* graph, SDS* vertices, short* colours, int num_v, FILE* outp);
+void build(Edge* graph, short* vertices, short* colours, int num_v, FILE* outp);
 
-short fixcolours(SDS* vertices, short* colours, int num_v, short i, short j);
+short fixcolours(short* vertices, short* colours, int num_v, short i, short j);
 
 int main() {
 	FILE* inp = fopen("in.txt", "rt"), *outp = fopen("out.txt", "wt");
@@ -100,7 +96,7 @@ _Bool fill_graph(Edge* Graph, int num_v, int num_e, FILE* inp, FILE* outp) {
 void create_frame(Edge* Graph, int num_v, int num_e, FILE* outp) {
 	_Bool* isv = (_Bool*)malloc(sizeof(_Bool) * num_v);
 	int i;
-	SDS* vertices;
+	short* vertices;
 	if (!isv) {
 		fprintf(outp, "Memory allocation error");
 		return;
@@ -149,24 +145,24 @@ _Bool conn(Edge* Graph, int num_v, int num_e, _Bool* isv) {
 }
 
 
-SDS* init_set(int num_v, FILE* outp) {
-	SDS* vertices = (SDS*)malloc(sizeof(SDS) * num_v);
+short* init_set(int num_v, FILE* outp) {
+	short* vertices = (short*)malloc(sizeof(short) * num_v);
 	int i;
 	if (!vertices) fprintf(outp, "Memory allocation error");
 	else {
-		for (i = 0; i < num_v; i++) vertices[i].vertex = vertices[i].colour = i;
+		for (i = 0; i < num_v; i++) vertices[i] = i;
 	}
 	return vertices;
 }
 
 
-void build(Edge* Graph, SDS* vertices, short* colours, int num_v, FILE* outp) {
+void build(Edge* Graph, short* vertices, short* colours, int num_v, FILE* outp) {
 	int i = 0;
 	short v1, v2, max = 0;
 	while (max != num_v) {
 		v1 = Graph[i].v1;
 		v2 = Graph[i].v2;
-		if (vertices[v1].colour != vertices[v2].colour) {
+		if (vertices[v1] != vertices[v2]) {
 			fprintf(outp, "%d %d\n", v1 + 1, v2 + 1);
 			max = fixcolours(vertices, colours, num_v, v1, v2);
 		}
@@ -175,19 +171,19 @@ void build(Edge* Graph, SDS* vertices, short* colours, int num_v, FILE* outp) {
 }
 
 
-short fixcolours(SDS* vertices, short* colours, int num_v, short i, short j) {
+short fixcolours(short* vertices, short* colours, int num_v, short i, short j) {
 	short k, min, max, counter = 0;
 	if (colours[i] <= colours[j]) {
-		max = vertices[j].colour;
-		min = vertices[i].colour;
+		max = vertices[j];
+		min = vertices[i];
 	}
 	else {
-		max = vertices[i].colour;
-		min = vertices[j].colour;
+		max = vertices[i];
+		min = vertices[j];
 	}
 	for (k = 0; counter < colours[min]; k++) {
-		if (vertices[k].colour == min) {
-			vertices[k].colour = max;
+		if (vertices[k] == min) {
+			vertices[k] = max;
 			counter++;
 		}
 	}
