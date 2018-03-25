@@ -107,11 +107,12 @@ void create_frame(Edge* Graph, int num_v, int num_e, FILE* outp) {
 	}
 	for (i = 0; i < num_v; i++) isv[i] = 0;
 	isv[Graph[0].v1] = 1;
-	if (!conn(Graph, num_v, num_e , isv)) {
+	if (!conn(Graph, num_v, num_e, isv)) {
 		fprintf(outp, "no spanning tree");
 		return;
 	}
 	free(isv);
+	for (i = (num_e) / 2 - 1; i >= 0; i--) seed(Graph, num_e - 1, i);
 	sort(Graph, num_e - 1);
 	short* colours = (short*)malloc(sizeof(short) * num_v);
 	if (!colours) {
@@ -182,9 +183,9 @@ short fixcolours(SDS* vertices, short* colours, int num_v, short i, short j) {
 	}
 	else {
 		max = vertices[i].colour;
-		min = vertices[j].colour;	
+		min = vertices[j].colour;
 	}
-	for (k = 0;counter < colours[min]; k++) {
+	for (k = 0; counter < colours[min]; k++) {
 		if (vertices[k].colour == min) {
 			vertices[k].colour = max;
 			counter++;
