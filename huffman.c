@@ -228,9 +228,9 @@ void print(uc** codes, uc* s, FILE* outp) {
 		while (codes[*s][i]) {
 			for (; codes[*s][i] && bits_c < 8; i++, bits_c++) code = code * 2 + codes[*s][i] - 1;
 			if (bits_c == 8) {
-				fwrite(&code, sizeof(uc), 1, outp);
+			    fwrite(&code, sizeof(uc), 1, outp);
 			    bits_c = 0;
-				code = 0;
+			    code = 0;
 			}
 		}
 	}
