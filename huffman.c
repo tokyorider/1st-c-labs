@@ -1,5 +1,4 @@
 #define _CRT_SECURE_NO_WARNINGS
-#define SIZE 1024
 #define CHARSIZE 256
 #define f_err "File opening error"
 #define m_err "Memory allocation error"
