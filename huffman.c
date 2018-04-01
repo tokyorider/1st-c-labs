@@ -1,7 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
-#define SIZE 1024
 #define CHARSIZE 256
-#define MAXHEIGHT 24
+#define MAXLENGTH CHARSIZE - 1 
 #define l 1
 #define r 2
 #define byte 8
@@ -16,13 +15,15 @@ typedef unsigned int ui;
 typedef unsigned char uc;
 typedef struct Tree {
 	uc sym;
-	size_t freq;
+	uc is_sym;
+	ui freq;
 	struct Tree* left;
 	struct Tree* right;
 } Tree;
 typedef struct List {
 	uc sym;
-	size_t freq;
+	_Bool is_sym;
+	ui freq;
 	struct List* next;
 	Tree* node;
 } List;
@@ -31,7 +32,7 @@ void close_files(FILE* a, FILE* b);
 
 void compress(uc* s, FILE* outp);
 
-List* push(List*, size_t fr, uc sym);
+List* push(List*, ui fr, uc sym);
 
 Tree* build_tree(List* list_head, size_t ln);
 
@@ -39,11 +40,19 @@ List* cpy_t_to_l(Tree* ptr);
 
 Tree* cpy_l_to_t(List* ptr, Tree* left, Tree* right);
 
-void write_codes(Tree* root, int ind, uc[CHARSIZE][MAXHEIGHT], uc* code, uc el);
+void write_codes(Tree* root, int ind, uc[CHARSIZE][MAXLENGTH], uc* code, uc el);
 
-void print(uc[CHARSIZE][MAXHEIGHT], uc* s, FILE* outp);
+FILE* print(uc[CHARSIZE][MAXLENGTH], uc* s, FILE* outp);
+
+void print_tree(Tree* root, FILE* data);
 
 void free_list(List* ptr);
+
+void decompress(uc* s, FILE* outp);
+
+void recreate_tree(Tree* root, FILE* data);
+
+void free_tree(Tree* root);
 
 int main() {
 	FILE *inp = fopen("in.txt", "rt"), *outp = fopen("out.txt", "wt");
@@ -73,6 +82,7 @@ int main() {
 	}
 	s[fread(s, sizeof(uc), ln, inp)] = 0;
 	if (c[0] == 'c' && *s) compress(s, outp);
+	else decompress(s, outp);
 	free(s);
 	close_files(inp, outp);
 	return 0;
@@ -86,7 +96,8 @@ void close_files(FILE* a, FILE* b) {
 
 
 void compress(uc* s, FILE* outp) {
-	size_t frequences[CHARSIZE] = { 0 }, i;
+	FILE* data;
+	ui frequences[CHARSIZE] = { 0 }, i;
 	List* head = NULL;
 	Tree* root = NULL;
 	for (i = 0; s[i]; i++) frequences[s[i]]++;
@@ -105,8 +116,8 @@ void compress(uc* s, FILE* outp) {
 		free_list(head);
 		return;
 	}
-	uc codes[256][MAXHEIGHT], code[MAXHEIGHT];
-	if (!root->sym) {
+	uc codes[256][MAXLENGTH], code[MAXLENGTH];
+	if (!root->is_sym) {
 		write_codes(root->left, 0, codes, code, l);
 		write_codes(root->right, 0, codes, code, r);
 	}
@@ -114,12 +125,12 @@ void compress(uc* s, FILE* outp) {
 		codes[root->sym][0] = 2;
 		codes[root->sym][1] = 0;
 	}
-	print(codes, s, outp);
+	if ((data = print(codes, s, outp))) print_tree(root, data);
 	free_list(head);
 }
 
 
-List* push(List* head, size_t fr, uc sym) {
+List* push(List* head, ui fr, uc sym) {
 	List* tmp1 = NULL, *tmp2 = NULL;
 	if (head && fr >= head->freq) {
 		for (tmp1 = head; tmp1->next && fr >= tmp1->next->freq; tmp1 = tmp1->next)
@@ -145,6 +156,7 @@ List* push(List* head, size_t fr, uc sym) {
 	tmp1->next = tmp2;
 	tmp1->freq = fr;
 	tmp1->sym = sym;
+	tmp1->is_sym = 1;
 	tmp1->node = cpy_l_to_t(tmp1, NULL, NULL);
 	if (!tmp1->node) {
 		free_list(head);
@@ -163,6 +175,7 @@ Tree* build_tree(List* list_head, size_t ln) {
 		if (!root) return NULL;
 		root->sym = 0;
 		root->left = tmp1->node;
+		root->is_sym = 0;
 		tmp2 = tmp1->next;
 		root->right = tmp2->node;
 		root->freq = tmp1->freq + tmp2->freq;
@@ -186,6 +199,7 @@ List* cpy_t_to_l(Tree* ptr) {
 	if (!el) return NULL;
 	el->freq = ptr->freq;
 	el->sym = ptr->sym;
+	el->is_sym = ptr->is_sym;
 	return el;
 }
 
@@ -195,16 +209,17 @@ Tree* cpy_l_to_t(List* ptr, Tree* left, Tree* right) {
 	if (!el) return NULL;
 	el->freq = ptr->freq;
 	el->sym = ptr->sym;
+	el->is_sym = ptr->is_sym;
 	el->left = left;
 	el->right = right;
 	return el;
 }
 
 
-void write_codes(Tree* root, int i, uc codes[CHARSIZE][MAXHEIGHT], uc* code, uc el) {
+void write_codes(Tree* root, int i, uc codes[CHARSIZE][MAXLENGTH], uc* code, uc el) {
 	code[i++] = el;
 	code[i] = 0;
-	if (root->sym) {
+	if (root->is_sym) {
 		strcpy(codes[root->sym], code);
 		return;
 	}
@@ -214,20 +229,40 @@ void write_codes(Tree* root, int i, uc codes[CHARSIZE][MAXHEIGHT], uc* code, uc 
 }
 
 
-void print(uc codes[CHARSIZE][MAXHEIGHT], uc* s, FILE* outp) {
-	int bits_c = 0, i;
-	uc code = 0;
+FILE* print(uc codes[CHARSIZE][MAXLENGTH], uc* s, FILE* outp) {
+	FILE* data = fopen("tree.txt", "wt");
+	if (!data) {
+		fprintf(outp, f_err);
+		return NULL;
+	}
+	int bits_c = 0;
+	uc code = 0, i;
 	for (; *s; s++) {
 		i = 0;
 		while (codes[*s][i]) {
 			for (; codes[*s][i] && bits_c < byte; i++, bits_c++) code = code * 2 + codes[*s][i] - 1;
 			if (bits_c == byte) {
-				fwrite(&code, sizeof(uc), 1, outp);
+			    fwrite(&code, sizeof(uc), 1, outp);
 			    bits_c = 0;
-				code = 0;
+			    code = 0;
 			}
 		}
 	}
+	if (i) {
+		code <<= 8 - i;
+		fwrite(&i, sizeof(uc), 1, data);
+		fwrite(&code, sizeof(uc), 1, outp);
+	}
+	return data;
+}
+
+
+void print_tree(Tree* root, FILE* data) {
+	if (!root) return;
+	fwrite(&(root->is_sym), sizeof(uc), 1, data);
+	if (root->is_sym) fwrite(&(root->sym), sizeof(uc), 1, data);
+	print_codes(root->left, data);
+	print_codes(root->right, data);
 }
 
 
@@ -238,4 +273,23 @@ void free_list(List* ptr) {
 	}
 	free(ptr->node);
 	free(ptr);
+}
+
+
+void decompress(uc* s, FILE* outp) {
+	FILE* data = fopen("tree.txt", "rt");
+	if (!data) {
+		fprintf(outp, f_err);
+		return;
+	}
+	uc num_extra_bits;
+	fread(&num_extra_bits, sizeof(uc), 1, data);
+}
+
+
+void free_tree(Tree* root) {
+	if (!root) return;
+	free_tree(root->left);
+	free_tree(root->right);
+	free(root);
 }
