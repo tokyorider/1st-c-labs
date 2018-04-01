@@ -1,4 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS
+#define SIZE 1024
 #define CHARSIZE 256
 #define f_err "File opening error"
 #define m_err "Memory allocation error"
@@ -34,9 +35,9 @@ List* cpy_t_to_l(Tree* ptr);
 
 Tree* cpy_l_to_t(List* ptr, Tree* l, Tree* r);
 
-_Bool write_codes(Tree* root, int ind, uc** codes, uc* code, uc el);
+_Bool write_codes(Tree* root, int ind, uc[256][24], uc* code, uc el);
 
-void print(uc** codes, uc* s, FILE* outp);
+void print(uc[256][24], uc* s, FILE* outp);
 
 void free_list(List* ptr);
 
@@ -68,6 +69,7 @@ int main() {
 	}
 	s[fread(s, sizeof(uc), ln, inp)] = 0;
 	if (c[0] == 'c' && *s) compress(s, outp);
+	free(s);
 	close_files(inp, outp);
 	return 0;
 }
@@ -99,16 +101,9 @@ void compress(uc* s, FILE* outp) {
 		free_list(head);
 		return;
 	}
-	uc **codes = calloc(CHARSIZE, sizeof(uc)), *code = (uc*)malloc(sizeof(uc));
-	if (!codes || !code || !write_codes(root, 0, codes, NULL, 1)) fprintf(outp, m_err);
-	else print(codes, s, outp);
-	if (codes) {
-		for (i = 0; i < CHARSIZE; i++) {
-			if (frequences[i]) free(codes[i]);
-		}
-		free(codes);
-	}
-	free(code);
+	uc codes[256][24], code[24];
+	if (!codes || !code || !write_codes(root, 0, codes, code, 1)) fprintf(outp, m_err);
+	print(codes, s, outp);
 	free_list(head);
 }
 
@@ -116,15 +111,16 @@ void compress(uc* s, FILE* outp) {
 List* push(List* head, size_t fr, uc sym) {
 	List* tmp1 = NULL, *tmp2 = NULL;
 	if (head && fr >= head->freq) {
-		for (tmp1 = head; tmp1->next && fr >= tmp1->next->freq; tmp1 = tmp1->next);
+		for (tmp1 = head; tmp1->next && fr >= tmp1->next->freq; tmp1 = tmp1->next)
+			;
 		tmp2 = tmp1->next;
 		tmp1->next = (List*)malloc(sizeof(List));
 		tmp1 = tmp1->next;
 	}
 	else if (head && fr < head->freq) {
 		tmp1 = (List*)malloc(sizeof(List));
-		head = tmp1;
 		tmp2 = head;
+		head = tmp1;
 	}
 	else {
 		tmp1 = (List*)malloc(sizeof(List));
@@ -193,34 +189,21 @@ Tree* cpy_l_to_t(List* ptr, Tree* left, Tree* right) {
 }
 
 
-_Bool write_codes(Tree* root, int i, uc** codes, uc* code, uc el) {
+_Bool write_codes(Tree* root, int i, uc codes[256][24], uc* code, uc el) {
 	if (!root) return 1;
-	code = realloc(code, i + 1);
-	if (!code) return 0;
 	code[i++] = el;
 	code[i] = 0;
 	if (root->sym) {
-		codes[root->sym] = (uc*)malloc(sizeof(uc) * strlen(code));
-		if (!codes[root->sym]) {
-			free(code);
-			return 0;
-		}
 		strcpy(codes[root->sym], code);
 		return 1;
 	}
-	if (!write_codes(root->left, i, codes, code, 1)) {
-		free(code);
-		return 0;
-	}
-	if (!write_codes(root->right, i, codes, code, 2)) {
-		free(code);
-		return 0;
-	}
+	if (!write_codes(root->left, i, codes, code, 1)) return 0;
+	if (!write_codes(root->right, i, codes, code, 2)) return 0;
 	return 1;
 }
 
 
-void print(uc** codes, uc* s, FILE* outp) {
+void print(uc codes[256][24], uc* s, FILE* outp) {
 	int bits_c = 0, i;
 	uc code = 0;
 	for (; *s; s++) {
@@ -228,9 +211,9 @@ void print(uc** codes, uc* s, FILE* outp) {
 		while (codes[*s][i]) {
 			for (; codes[*s][i] && bits_c < 8; i++, bits_c++) code = code * 2 + codes[*s][i] - 1;
 			if (bits_c == 8) {
-			    fwrite(&code, sizeof(uc), 1, outp);
+				fwrite(&code, sizeof(uc), 1, outp);
 			    bits_c = 0;
-			    code = 0;
+				code = 0;
 			}
 		}
 	}
