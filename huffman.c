@@ -1,6 +1,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define SIZE 1024
 #define CHARSIZE 256
+#define MAXHEIGHT 24
+#define l 1
+#define r 2
+#define byte 8
 #define f_err "File opening error"
 #define m_err "Memory allocation error"
 
@@ -33,11 +37,11 @@ Tree* build_tree(List* list_head, size_t ln);
 
 List* cpy_t_to_l(Tree* ptr);
 
-Tree* cpy_l_to_t(List* ptr, Tree* l, Tree* r);
+Tree* cpy_l_to_t(List* ptr, Tree* left, Tree* right);
 
-_Bool write_codes(Tree* root, int ind, uc[256][24], uc* code, uc el);
+void write_codes(Tree* root, int ind, uc[CHARSIZE][MAXHEIGHT], uc* code, uc el);
 
-void print(uc[256][24], uc* s, FILE* outp);
+void print(uc[CHARSIZE][MAXHEIGHT], uc* s, FILE* outp);
 
 void free_list(List* ptr);
 
@@ -101,8 +105,15 @@ void compress(uc* s, FILE* outp) {
 		free_list(head);
 		return;
 	}
-	uc codes[256][24], code[24];
-	if (!codes || !code || !write_codes(root, 0, codes, code, 1)) fprintf(outp, m_err);
+	uc codes[256][MAXHEIGHT], code[MAXHEIGHT];
+	if (!root->sym) {
+		write_codes(root->left, 0, codes, code, l);
+		write_codes(root->right, 0, codes, code, r);
+	}
+	else {
+		codes[root->sym][0] = 2;
+		codes[root->sym][1] = 0;
+	}
 	print(codes, s, outp);
 	free_list(head);
 }
@@ -146,6 +157,7 @@ List* push(List* head, size_t fr, uc sym) {
 Tree* build_tree(List* list_head, size_t ln) {
 	Tree *root = NULL;
 	List *tmp1 = list_head, *tmp2, *tmp3;
+	if (!list_head->next) return list_head->node;
 	do {
 		root = (Tree*)malloc(sizeof(Tree));
 		if (!root) return NULL;
@@ -189,28 +201,27 @@ Tree* cpy_l_to_t(List* ptr, Tree* left, Tree* right) {
 }
 
 
-_Bool write_codes(Tree* root, int i, uc codes[256][24], uc* code, uc el) {
-	if (!root) return 1;
+void write_codes(Tree* root, int i, uc codes[CHARSIZE][MAXHEIGHT], uc* code, uc el) {
 	code[i++] = el;
 	code[i] = 0;
 	if (root->sym) {
 		strcpy(codes[root->sym], code);
-		return 1;
+		return;
 	}
-	if (!write_codes(root->left, i, codes, code, 1)) return 0;
-	if (!write_codes(root->right, i, codes, code, 2)) return 0;
-	return 1;
+	write_codes(root->left, i, codes, code, l);
+	write_codes(root->right, i, codes, code, r);
+	return;
 }
 
 
-void print(uc codes[256][24], uc* s, FILE* outp) {
+void print(uc codes[CHARSIZE][MAXHEIGHT], uc* s, FILE* outp) {
 	int bits_c = 0, i;
 	uc code = 0;
 	for (; *s; s++) {
 		i = 0;
 		while (codes[*s][i]) {
-			for (; codes[*s][i] && bits_c < 8; i++, bits_c++) code = code * 2 + codes[*s][i] - 1;
-			if (bits_c == 8) {
+			for (; codes[*s][i] && bits_c < byte; i++, bits_c++) code = code * 2 + codes[*s][i] - 1;
+			if (bits_c == byte) {
 				fwrite(&code, sizeof(uc), 1, outp);
 			    bits_c = 0;
 				code = 0;
