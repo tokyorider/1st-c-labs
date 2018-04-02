@@ -30,7 +30,7 @@ typedef struct List {
 
 void close_files(FILE* a, FILE* b);
 
-void compress(uc* s, FILE* outp);
+void compress(uc* s, size_t ln, FILE* outp);
 
 List* push(List*, ui fr, uc sym);
 
@@ -42,15 +42,15 @@ Tree* cpy_l_to_t(List* ptr, Tree* left, Tree* right);
 
 void write_codes(Tree* root, int ind, uc[CHARSIZE][MAXLENGTH], uc* code, uc el);
 
-FILE* print(uc[CHARSIZE][MAXLENGTH], uc* s, FILE* outp);
+FILE* print(uc[CHARSIZE][MAXLENGTH], uc* s, size_t ln, FILE* outp);
 
 void print_tree(Tree* root, FILE* data);
 
 void free_list(List* ptr);
 
-void decompress(uc* s, FILE* outp);
+void decompress(uc* s, size_t ln, FILE* outp);
 
-void recreate_tree(Tree* root, FILE* data);
+Tree* recreate_tree(FILE* data);
 
 void free_tree(Tree* root);
 
@@ -80,9 +80,10 @@ int main() {
 		fprintf(outp, m_err);
 		close_files(inp, outp);
 	}
-	s[fread(s, sizeof(uc), ln, inp)] = 0;
-	if (c[0] == 'c' && *s) compress(s, outp);
-	else decompress(s, outp);
+	ln = fread(s, sizeof(uc), ln, inp);
+	s[ln] = 0;
+	if (c[0] == 'c' && ln > 0) compress(s, ln, outp);
+	else if (ln > 0) decompress(s, ln - 1, outp);
 	free(s);
 	close_files(inp, outp);
 	return 0;
@@ -95,13 +96,13 @@ void close_files(FILE* a, FILE* b) {
 }
 
 
-void compress(uc* s, FILE* outp) {
+void compress(uc* s, size_t ln, FILE* outp) {
 	FILE* data;
-	ui frequences[CHARSIZE] = { 0 }, i;
+	ui frequences[CHARSIZE] = { 0 };
+	size_t i;
 	List* head = NULL;
 	Tree* root = NULL;
-	for (i = 0; s[i]; i++) frequences[s[i]]++;
-	size_t j = i;
+	for (i = 0;i < ln; i++) frequences[s[i]]++;
 	for (i = 0; i < CHARSIZE; i++) {
 		if (frequences[i]) {
 			head = push(head, frequences[i], (uc)i);
@@ -111,7 +112,7 @@ void compress(uc* s, FILE* outp) {
 			}
 		}
 	}
-	if (!(root = build_tree(head, j))) {
+	if (!(root = build_tree(head, ln))) {
 		fprintf(outp, m_err);
 		free_list(head);
 		return;
@@ -125,7 +126,8 @@ void compress(uc* s, FILE* outp) {
 		codes[root->sym][0] = 2;
 		codes[root->sym][1] = 0;
 	}
-	if ((data = print(codes, s, outp))) print_tree(root, data);
+	if ((data = print(codes, s, ln, outp))) print_tree(root, data);
+	fclose(data);
 	free_list(head);
 }
 
@@ -229,30 +231,31 @@ void write_codes(Tree* root, int i, uc codes[CHARSIZE][MAXLENGTH], uc* code, uc 
 }
 
 
-FILE* print(uc codes[CHARSIZE][MAXLENGTH], uc* s, FILE* outp) {
+FILE* print(uc codes[CHARSIZE][MAXLENGTH], uc* s, size_t ln, FILE* outp) {
 	FILE* data = fopen("tree.txt", "wt");
 	if (!data) {
 		fprintf(outp, f_err);
 		return NULL;
 	}
-	int bits_c = 0;
-	uc code = 0, i;
-	for (; *s; s++) {
+	uc code = 0, i, bits_c = 0;
+	for (size_t j = 0;j < ln;j++) {
 		i = 0;
-		while (codes[*s][i]) {
-			for (; codes[*s][i] && bits_c < byte; i++, bits_c++) code = code * 2 + codes[*s][i] - 1;
+		while (codes[s[j]][i]) {
+			for (; codes[s[j]][i] && bits_c < byte; i++, bits_c++) code = code * 2 + codes[s[j]][i] - 1;
 			if (bits_c == byte) {
-			    fwrite(&code, sizeof(uc), 1, outp);
+				fwrite(&code, sizeof(uc), 1, outp);
 			    bits_c = 0;
-			    code = 0;
+				code = 0;
 			}
 		}
 	}
-	if (i) {
-		code <<= 8 - i;
-		fwrite(&i, sizeof(uc), 1, data);
+	if (bits_c) {
+		bits_c = byte - bits_c;
+		code <<= bits_c;
+		fwrite(&bits_c, sizeof(uc), 1, data);
 		fwrite(&code, sizeof(uc), 1, outp);
 	}
+	else fwrite(&bits_c, sizeof(uc), 1, data);
 	return data;
 }
 
@@ -261,8 +264,8 @@ void print_tree(Tree* root, FILE* data) {
 	if (!root) return;
 	fwrite(&(root->is_sym), sizeof(uc), 1, data);
 	if (root->is_sym) fwrite(&(root->sym), sizeof(uc), 1, data);
-	print_codes(root->left, data);
-	print_codes(root->right, data);
+	print_tree(root->left, data);
+	print_tree(root->right, data);
 }
 
 
@@ -276,14 +279,70 @@ void free_list(List* ptr) {
 }
 
 
-void decompress(uc* s, FILE* outp) {
+void decompress(uc* s, size_t ln, FILE* outp) {
 	FILE* data = fopen("tree.txt", "rt");
 	if (!data) {
 		fprintf(outp, f_err);
 		return;
 	}
-	uc num_extra_bits;
+	uc num_extra_bits, degrees[byte];
+	size_t j = 0;
+    int i;
 	fread(&num_extra_bits, sizeof(uc), 1, data);
+	Tree* root = recreate_tree(data), *tmp = root;
+	if (!root) {
+		fprintf(outp, m_err);
+		fclose(data);
+		return;
+	}
+	if (root->is_sym) {
+		for (size_t lh = (ln + 1) * 8 - num_extra_bits; j < lh; j++) fwrite(&(root->sym), sizeof(uc), 1, outp);
+		fclose(data);
+		return;
+	}
+	for (i = 0; i < byte; i++) degrees[i] = 1 << i;
+	while (j < ln) {
+		i = 7;
+		while (i >= 0) {
+			if (tmp->is_sym) {
+				fwrite(&(tmp->sym), sizeof(uc), 1, outp);
+				tmp = root;
+			}
+			if (s[j] & degrees[i--]) tmp = tmp->right;
+			else tmp = tmp->left;
+		}
+		j++;
+	}
+	s[ln] >>= num_extra_bits;
+	i = byte - num_extra_bits;
+	while (i-- >= 0) {
+		if (tmp->is_sym) {
+			fwrite(&(tmp->sym), sizeof(uc), 1, outp);
+			tmp = root;
+		}
+	    if (s[ln] & degrees[i]) tmp = tmp->right;
+		else tmp = tmp->left;
+	}
+	fclose(data);
+}
+
+
+Tree* recreate_tree(FILE* data) {
+	Tree* node = (Tree*)malloc(sizeof(Tree));
+	if (!node) return NULL;
+	fread(&(node->is_sym), sizeof(uc), 1, data);
+	if (node->is_sym) {
+		fread(&(node->sym), sizeof(uc), 1, data);
+		node->left = node->right = NULL;
+		return node;
+	}
+	node->left = recreate_tree(data);
+	node->right = recreate_tree(data);
+	if (!(node->left && node->right)) {
+		free_tree(node);
+		return NULL;
+	}
+	return node;
 }
 
 
