@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
+#define LINESIZE 100000
 #define CHARSIZE 256
-#define MAXLENGTH CHARSIZE - 1 
+#define MAXLENGTH CHARSIZE - 1
 #define l 1
 #define r 2
 #define byte 8
@@ -30,7 +31,7 @@ typedef struct List {
 
 void close_files(FILE* a, FILE* b);
 
-void compress(uc* s, size_t ln, FILE* outp);
+void compress(FILE* inp, FILE* outp);
 
 List* push(List*, ui fr, uc sym);
 
@@ -40,51 +41,41 @@ List* cpy_t_to_l(Tree* ptr);
 
 Tree* cpy_l_to_t(List* ptr, Tree* left, Tree* right);
 
-void write_codes(Tree* root, int ind, uc[CHARSIZE][MAXLENGTH], uc* code, uc el);
+void write_codes(Tree* root, int ind, uc[CHARSIZE][MAXLENGTH], uc[MAXLENGTH], uc el);
 
-FILE* print(uc[CHARSIZE][MAXLENGTH], uc* s, size_t ln, FILE* outp);
+void print(uc[CHARSIZE][MAXLENGTH], uc* s, FILE* inp, FILE* outp);
 
-void print_tree(Tree* root, FILE* data);
+void print_tree(Tree* root, FILE* outp, uc[byte], size_t ln);
 
 void free_list(List* ptr);
 
-void decompress(uc* s, size_t ln, FILE* outp);
+void decompress(FILE* inp, FILE* outp);
 
-Tree* recreate_tree(FILE* data);
+FILE* recreate_tree(FILE* inp, Tree* node);
 
 void free_tree(Tree* root);
 
 int main() {
-	FILE *inp = fopen("in.txt", "rt"), *outp = fopen("out.txt", "wt");
+	FILE *inp = fopen("in.txt", "rb"), *outp = fopen("out.txt", "wb");
 	if (!(inp && outp)) {
 		if (outp) fprintf(outp, f_err);
 		close_files(inp, outp);
 		return 1;
 	}
-	fseek(inp, 0, SEEK_END);
-	size_t ln = ftell(inp);
-	if (ln == 1L) {
-		fprintf(outp, "File error");
-		close_files(inp, outp);
-		return 1;
-	}
-	fseek(inp, 0, SEEK_SET);
-	uc c[2];
-	fread(c, sizeof(uc), 2, inp);
-	if (c[0] != 'c' && c[0] != 'd' || c[1] != '\n') {
+	uc c[3];
+	fread(c, sizeof(uc), 3, inp);
+	if (c[0] != 'c' && c[0] != 'd' || c[1] != '\r' || c[2] !='\n') {
 		close_files(inp, outp);
 		return 0;
 	}
-	uc* s = (uc*)malloc(sizeof(uc) * ln);
-	if (!s) {
-		fprintf(outp, m_err);
-		close_files(inp, outp);
+	fseek(inp, 0, SEEK_END);
+	size_t ln = ftell(inp);
+	fseek(inp, 3, SEEK_SET);
+	if (ln != 1L && ln != 3) {
+		if (c[0] == 'c') compress(inp, outp);
+		else decompress(inp, outp);
 	}
-	ln = fread(s, sizeof(uc), ln, inp);
-	s[ln] = 0;
-	if (c[0] == 'c' && ln > 0) compress(s, ln, outp);
-	else if (ln > 0) decompress(s, ln - 1, outp);
-	free(s);
+	else if (ln == 1L) fprintf(outp, "A file error has occurred");
 	close_files(inp, outp);
 	return 0;
 }
@@ -96,13 +87,23 @@ void close_files(FILE* a, FILE* b) {
 }
 
 
-void compress(uc* s, size_t ln, FILE* outp) {
-	FILE* data;
+void compress(FILE* inp, FILE* outp) {
 	ui frequences[CHARSIZE] = { 0 };
-	size_t i;
+	size_t i, ln = 0, count;
 	List* head = NULL;
 	Tree* root = NULL;
-	for (i = 0;i < ln; i++) frequences[s[i]]++;
+	uc* s = (uc*)malloc(sizeof(uc) * LINESIZE);
+	if (!s) {
+		fprintf(outp, m_err);
+		return;
+	}
+	count = fread(s, sizeof(uc), LINESIZE, inp);
+	while (count) {
+		for (i = 0; i < count; i++) frequences[s[i]]++;
+		ln += count;
+		count = fread(s, sizeof(uc), LINESIZE, inp);
+	}
+	fseek(inp, 3, SEEK_SET);
 	for (i = 0; i < CHARSIZE; i++) {
 		if (frequences[i]) {
 			head = push(head, frequences[i], (uc)i);
@@ -117,7 +118,7 @@ void compress(uc* s, size_t ln, FILE* outp) {
 		free_list(head);
 		return;
 	}
-	uc codes[256][MAXLENGTH], code[MAXLENGTH];
+	uc codes[CHARSIZE][MAXLENGTH], code[MAXLENGTH], syms[byte];
 	if (!root->is_sym) {
 		write_codes(root->left, 0, codes, code, l);
 		write_codes(root->right, 0, codes, code, r);
@@ -126,8 +127,8 @@ void compress(uc* s, size_t ln, FILE* outp) {
 		codes[root->sym][0] = 2;
 		codes[root->sym][1] = 0;
 	}
-	if ((data = print(codes, s, ln, outp))) print_tree(root, data);
-	fclose(data);
+    print_tree(root, outp, syms, ln);
+	print(codes, s, inp, outp);
 	free_list(head);
 }
 
@@ -135,8 +136,7 @@ void compress(uc* s, size_t ln, FILE* outp) {
 List* push(List* head, ui fr, uc sym) {
 	List* tmp1 = NULL, *tmp2 = NULL;
 	if (head && fr >= head->freq) {
-		for (tmp1 = head; tmp1->next && fr >= tmp1->next->freq; tmp1 = tmp1->next)
-			;
+		for (tmp1 = head; tmp1->next && fr >= tmp1->next->freq; tmp1 = tmp1->next) ;
 		tmp2 = tmp1->next;
 		tmp1->next = (List*)malloc(sizeof(List));
 		tmp1 = tmp1->next;
@@ -218,54 +218,73 @@ Tree* cpy_l_to_t(List* ptr, Tree* left, Tree* right) {
 }
 
 
-void write_codes(Tree* root, int i, uc codes[CHARSIZE][MAXLENGTH], uc* code, uc el) {
+void write_codes(Tree* root, int i, uc codes[CHARSIZE][MAXLENGTH], uc code[MAXLENGTH], uc el) {
 	code[i++] = el;
-	code[i] = 0;
+	code[i] = '\0';
 	if (root->is_sym) {
 		strcpy(codes[root->sym], code);
+		codes[root->sym][i] = '\0';
 		return;
 	}
 	write_codes(root->left, i, codes, code, l);
 	write_codes(root->right, i, codes, code, r);
-	return;
 }
 
 
-FILE* print(uc codes[CHARSIZE][MAXLENGTH], uc* s, size_t ln, FILE* outp) {
-	FILE* data = fopen("tree.txt", "wt");
-	if (!data) {
-		fprintf(outp, f_err);
-		return NULL;
-	}
+void print(uc codes[CHARSIZE][MAXLENGTH], uc* s, FILE* inp, FILE* outp) {
 	uc code = 0, i, bits_c = 0;
-	for (size_t j = 0;j < ln;j++) {
-		i = 0;
-		while (codes[s[j]][i]) {
-			for (; codes[s[j]][i] && bits_c < byte; i++, bits_c++) code = code * 2 + codes[s[j]][i] - 1;
-			if (bits_c == byte) {
-				fwrite(&code, sizeof(uc), 1, outp);
-			    bits_c = 0;
-				code = 0;
+	size_t count = fread(s, sizeof(uc), LINESIZE, inp), j;
+	while (count) {
+		for (j = 0; j < count; j++) {
+			i = 0;
+			while (codes[s[j]][i]) {
+				for (; codes[s[j]][i] && bits_c < byte; i++, bits_c++) code = (code << 1) + codes[s[j]][i] - 1;
+				if (bits_c == byte) {
+					fwrite(&code, sizeof(uc), 1, outp);
+					bits_c = 0;
+					code = 0;
+				}
 			}
 		}
+		count = fread(s, sizeof(uc), LINESIZE, inp);
 	}
 	if (bits_c) {
 		bits_c = byte - bits_c;
 		code <<= bits_c;
-		fwrite(&bits_c, sizeof(uc), 1, data);
 		fwrite(&code, sizeof(uc), 1, outp);
 	}
-	else fwrite(&bits_c, sizeof(uc), 1, data);
-	return data;
+	fwrite(&(bits_c), sizeof(uc), 1, outp);
 }
 
 
-void print_tree(Tree* root, FILE* data) {
-	if (!root) return;
-	fwrite(&(root->is_sym), sizeof(uc), 1, data);
-	if (root->is_sym) fwrite(&(root->sym), sizeof(uc), 1, data);
-	print_tree(root->left, data);
-	print_tree(root->right, data);
+void print_tree(Tree* root, FILE* outp, uc s[byte], size_t ln) {
+	static uc code = 0, counter = 0, syms_counter = 0;
+	if (counter == byte) {
+		fwrite(&code, sizeof(uc), 1, outp);
+		if (syms_counter) {
+			s[syms_counter] = '\0';
+			fwrite(s, sizeof(uc), syms_counter, outp);
+		}
+		code = counter = syms_counter = 0;
+	}
+	code = code | (root->is_sym << (7 - counter));
+	counter++;
+	if (root->is_sym) {
+		s[syms_counter++] = root->sym;
+		if (root->freq == ln) {
+			s[syms_counter] = '\0';
+			fwrite(&code, sizeof(uc), 1, outp);
+			fwrite(s, sizeof(uc), syms_counter, outp);
+		}
+		return;
+	}
+	print_tree(root->left, outp, s, ln);
+	print_tree(root->right, outp, s, ln);
+	if (root->freq == ln && counter) {
+		s[syms_counter] = '\0';
+		fwrite(&code, sizeof(uc), 1, outp);
+		fwrite(s, sizeof(uc), syms_counter, outp);
+	}
 }
 
 
@@ -279,70 +298,92 @@ void free_list(List* ptr) {
 }
 
 
-void decompress(uc* s, size_t ln, FILE* outp) {
-	FILE* data = fopen("tree.txt", "rt");
-	if (!data) {
-		fprintf(outp, f_err);
+void decompress(FILE* inp, FILE* outp) {
+	uc num_extra_bits, degrees[byte], *s = (uc*)malloc(sizeof(uc) * LINESIZE);
+	if (!s) {
+		fprintf(outp, m_err);
 		return;
 	}
-	uc num_extra_bits, degrees[byte];
-	size_t j = 0;
+	size_t j = 0, count, ln;
     int i;
-	fread(&num_extra_bits, sizeof(uc), 1, data);
-	Tree* root = recreate_tree(data), *tmp = root;
+	fseek(inp, -1, SEEK_END);
+	ln = ftell(inp) - 1;
+	fread(&num_extra_bits, sizeof(uc), 1, inp);
+	fseek(inp, 3, SEEK_SET);
+	Tree* root = (Tree*)malloc(sizeof(Tree)), *tmp = root;
 	if (!root) {
 		fprintf(outp, m_err);
-		fclose(data);
+		free(s);
 		return;
 	}
+	inp = recreate_tree(inp, root);
+	ln -= ftell(inp);
+	if (!inp) {
+		free_tree(root);
+		free(s);
+		fprintf(outp, m_err);
+		return;
+	}
+	count = fread(s, sizeof(uc), LINESIZE, inp);
 	if (root->is_sym) {
-		for (size_t lh = (ln + 1) * 8 - num_extra_bits; j < lh; j++) fwrite(&(root->sym), sizeof(uc), 1, outp);
-		fclose(data);
+		for (ln = ln * 8 + (byte - num_extra_bits); j < ln; j++) fwrite(&(root->sym), sizeof(uc), 1, outp);
+		free(s);
+		free_tree(root);
 		return;
 	}
 	for (i = 0; i < byte; i++) degrees[i] = 1 << i;
-	while (j < ln) {
-		i = 7;
-		while (i >= 0) {
-			if (tmp->is_sym) {
-				fwrite(&(tmp->sym), sizeof(uc), 1, outp);
-				tmp = root;
+	while (count) {
+		while (j < ln && count-- > 0) {
+			i = 7;
+			while (i >= 0) {
+				if (tmp->is_sym) {
+					fwrite(&(tmp->sym), sizeof(uc), 1, outp);
+					tmp = root;
+				}
+				if (s[j % LINESIZE] & degrees[i--]) tmp = tmp->right;
+				else tmp = tmp->left;
 			}
-			if (s[j] & degrees[i--]) tmp = tmp->right;
-			else tmp = tmp->left;
+			j++;
 		}
-		j++;
+		count = fread(s, sizeof(uc), LINESIZE, inp);
 	}
-	s[ln] >>= num_extra_bits;
+	s[j % LINESIZE] >>= num_extra_bits;
 	i = byte - num_extra_bits;
 	while (i-- >= 0) {
 		if (tmp->is_sym) {
 			fwrite(&(tmp->sym), sizeof(uc), 1, outp);
 			tmp = root;
 		}
-	    if (s[ln] & degrees[i]) tmp = tmp->right;
+	    if (s[j % LINESIZE] & degrees[i]) tmp = tmp->right;
 		else tmp = tmp->left;
 	}
-	fclose(data);
+	free_tree(root);
+	free(s);
 }
 
 
-Tree* recreate_tree(FILE* data) {
-	Tree* node = (Tree*)malloc(sizeof(Tree));
-	if (!node) return NULL;
-	fread(&(node->is_sym), sizeof(uc), 1, data);
-	if (node->is_sym) {
-		fread(&(node->sym), sizeof(uc), 1, data);
+FILE* recreate_tree(FILE* inp, Tree* node) {
+	static uc code, counter = 0;
+	if (counter == byte) counter = 0;
+	if (!counter) fread(&code, sizeof(uc), 1, inp);
+	if (code & (1 << (7 - counter++))) {
+		node->is_sym = 1;
+		fread(&(node->sym), sizeof(uc), 1, inp);
 		node->left = node->right = NULL;
-		return node;
+		return inp;
 	}
-	node->left = recreate_tree(data);
-	node->right = recreate_tree(data);
+	else node->is_sym = 0;
+	node->left = (Tree*)malloc(sizeof(Tree));
+	if (!node->left) return NULL;
+	inp = recreate_tree(inp, node->left);
+	node->right = (Tree*)malloc(sizeof(Tree));
+	if (!node->right) return NULL;
+	inp = recreate_tree(inp, node->right);
 	if (!(node->left && node->right)) {
 		free_tree(node);
 		return NULL;
 	}
-	return node;
+	return inp;
 }
 
 
