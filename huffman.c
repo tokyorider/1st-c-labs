@@ -7,6 +7,8 @@
 #define byte 8
 #define f_err "File opening error"
 #define m_err "Memory allocation error"
+#define help "Examples of input:\nhuffman.exe setting file1 file2\nor\nhuffman.exe -h\nSettings:\n-c to compress file1 into file2\n-d to decompress file1 into file2.\
+\nPrint -h to display help."
 
 #include "stdio.h"
 #include "stdlib.h"
@@ -31,7 +33,7 @@ typedef struct List {
 
 void close_files(FILE* a, FILE* b);
 
-void compress(FILE* inp, FILE* outp);
+void compress(FILE* inp, FILE* outp, int argc);
 
 List* push(List*, ui fr, uc sym);
 
@@ -49,14 +51,31 @@ void print_tree(Tree* root, FILE* outp, uc[byte], size_t ln);
 
 void free_list(List* ptr);
 
-void decompress(FILE* inp, FILE* outp);
+void decompress(FILE* inp, FILE* outp,int argc);
 
 FILE* recreate_tree(FILE* inp, Tree* node);
 
 void free_tree(Tree* root);
 
-int main() {
-	FILE *inp = fopen("in.txt", "rb"), *outp = fopen("out.txt", "wb");
+int main(int argc, char* argv[]) {
+	FILE *inp, *outp;
+	if (argc > 1) {
+		if (argc != 4 || argv[1][0] != '-' || argv[1][1] != 'c' && argv[1][1] != 'd' || argv[1][2] != '\0') printf(help);
+		else {
+			inp = fopen(argv[2], "rb");
+			outp = fopen(argv[3], "wb");
+			if (!(inp && outp)) {
+				if (outp) fprintf(outp, f_err);
+				close_files(inp, outp);
+				return 1;
+			}
+			if (argv[1][1] == 'c') compress(inp, outp, argc);
+			else decompress(inp, outp, argc);
+		}
+		return 0;
+	}
+	inp = fopen("in.txt", "rb");
+    outp = fopen("out.txt", "wb");
 	if (!(inp && outp)) {
 		if (outp) fprintf(outp, f_err);
 		close_files(inp, outp);
@@ -72,8 +91,8 @@ int main() {
 	size_t ln = ftell(inp);
 	fseek(inp, 3, SEEK_SET);
 	if (ln != 1L && ln != 3) {
-		if (c[0] == 'c') compress(inp, outp);
-		else decompress(inp, outp);
+		if (c[0] == 'c') compress(inp, outp, argc);
+		else decompress(inp, outp, argc);
 	}
 	else if (ln == 1L) fprintf(outp, "A file error has occurred");
 	close_files(inp, outp);
@@ -87,7 +106,7 @@ void close_files(FILE* a, FILE* b) {
 }
 
 
-void compress(FILE* inp, FILE* outp) {
+void compress(FILE* inp, FILE* outp, int argc) {
 	ui frequences[CHARSIZE] = { 0 };
 	size_t i, ln = 0, count;
 	List* head = NULL;
@@ -103,7 +122,8 @@ void compress(FILE* inp, FILE* outp) {
 		ln += count;
 		count = fread(s, sizeof(uc), LINESIZE, inp);
 	}
-	fseek(inp, 3, SEEK_SET);
+	if (argc == 1) fseek(inp, 3, SEEK_SET);
+	else fseek(inp, 0, SEEK_SET);
 	for (i = 0; i < CHARSIZE; i++) {
 		if (frequences[i]) {
 			head = push(head, frequences[i], (uc)i);
@@ -298,7 +318,7 @@ void free_list(List* ptr) {
 }
 
 
-void decompress(FILE* inp, FILE* outp) {
+void decompress(FILE* inp, FILE* outp, int argc) {
 	uc num_extra_bits, degrees[byte], *s = (uc*)malloc(sizeof(uc) * LINESIZE);
 	if (!s) {
 		fprintf(outp, m_err);
@@ -309,7 +329,8 @@ void decompress(FILE* inp, FILE* outp) {
 	fseek(inp, -1, SEEK_END);
 	ln = ftell(inp) - 1;
 	fread(&num_extra_bits, sizeof(uc), 1, inp);
-	fseek(inp, 3, SEEK_SET);
+	if (argc == 1) fseek(inp, 3, SEEK_SET);
+	else fseek(inp, 0, SEEK_SET);
 	Tree* root = (Tree*)malloc(sizeof(Tree)), *tmp = root;
 	if (!root) {
 		fprintf(outp, m_err);
