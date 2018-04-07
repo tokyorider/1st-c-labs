@@ -5,28 +5,29 @@
 #define l 1
 #define r 2
 #define byte 8
-#define f_err "File opening error"
-#define m_err "Memory allocation error"
-#define help "Examples of input:\nhuffman.exe setting file1 file2\nor\nhuffman.exe -h\nSettings:\n-c to compress file1 into file2\n-d to decompress file1 into file2.\
-\nPrint -h to display help."
+#define f_err "\nFile opening error. Please, make sure that file names are correct and files are located in this directory.\n"
+#define m_err "\nMemory allocation error.\n"
+#define f_err_occ "\nA file error has occured.\n"
+#define help "\nExamples of input: \nhuffman.exe setting file1 file2\nor\nhuffman.exe -h.\nSettings:\n-c to compress file1 into file2;\n-d to decompress file1 into file2.\
+\nPrint -h to display help.\n"
 
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include "time.h"
 
-typedef unsigned int ui;
 typedef unsigned char uc;
 typedef struct Tree {
 	uc sym;
 	uc is_sym;
-	ui freq;
+	size_t freq;
 	struct Tree* left;
 	struct Tree* right;
 } Tree;
 typedef struct List {
 	uc sym;
 	_Bool is_sym;
-	ui freq;
+	size_t freq;
 	struct List* next;
 	Tree* node;
 } List;
@@ -35,7 +36,7 @@ void close_files(FILE* a, FILE* b);
 
 void compress(FILE* inp, FILE* outp, int argc);
 
-List* push(List*, ui fr, uc sym);
+List* push(List*, size_t fr, uc sym);
 
 Tree* build_tree(List* list_head, size_t ln);
 
@@ -51,7 +52,7 @@ void print_tree(Tree* root, FILE* outp, uc[byte], size_t ln);
 
 void free_list(List* ptr);
 
-void decompress(FILE* inp, FILE* outp,int argc);
+void decompress(FILE* inp, FILE* outp, int argc);
 
 FILE* recreate_tree(FILE* inp, Tree* node);
 
@@ -60,17 +61,26 @@ void free_tree(Tree* root);
 int main(int argc, char* argv[]) {
 	FILE *inp, *outp;
 	if (argc > 1) {
-		if (argc != 4 || argv[1][0] != '-' || argv[1][1] != 'c' && argv[1][1] != 'd' || argv[1][2] != '\0') printf(help);
+		if (argc != 4 || argv[1][0] != '-' || argv[1][1] != 'c' && argv[1][1] != 'd' || argv[1][2] != '\0') {
+			if (argc < 4 && (argc != 2 || argv[1][0] == '-' && (argv[1][1] == 'c' || argv[1][1] == 'd') && argv[1][2] == '\0')) printf("\nToo few arguments.\n");
+			else if (argc > 4 || argv[1][1] == 'h' && argv[1][0] == '-' && argv[1][2] == '\0' && argc > 2) printf("\nToo many arguments.\n");
+			else if (argv[1][0] != '-' || argv[1][1] != 'c' && argv[1][1] != 'd' && argv[1][1] != 'h' || argv[1][2] != '\0') printf("\nWrong setting.\n");
+			printf(help);
+		}
+		else if (!strcmp(argv[2], argv[3])) printf("\nYou can't use the same file for input and output.\n");
 		else {
 			inp = fopen(argv[2], "rb");
 			outp = fopen(argv[3], "wb");
 			if (!(inp && outp)) {
-				if (outp) fprintf(outp, f_err);
+				if (outp) printf(f_err);
 				close_files(inp, outp);
 				return 1;
 			}
 			if (argv[1][1] == 'c') compress(inp, outp, argc);
 			else decompress(inp, outp, argc);
+			clock_t time = clock();
+			if (time == -1) printf("Time calculation error.");
+			else printf("Execution time: %.4lf seconds.", (((double)time) / ((double)CLOCKS_PER_SEC)));
 		}
 		return 0;
 	}
@@ -94,7 +104,7 @@ int main(int argc, char* argv[]) {
 		if (c[0] == 'c') compress(inp, outp, argc);
 		else decompress(inp, outp, argc);
 	}
-	else if (ln == 1L) fprintf(outp, "A file error has occurred");
+	else if (ln == 1L) fprintf(outp, "file_err_occ");
 	close_files(inp, outp);
 	return 0;
 }
@@ -107,13 +117,13 @@ void close_files(FILE* a, FILE* b) {
 
 
 void compress(FILE* inp, FILE* outp, int argc) {
-	ui frequences[CHARSIZE] = { 0 };
-	size_t i, ln = 0, count;
+	size_t i, ln = 0, count, frequences[CHARSIZE] = { 0 };
 	List* head = NULL;
 	Tree* root = NULL;
 	uc* s = (uc*)malloc(sizeof(uc) * LINESIZE);
 	if (!s) {
-		fprintf(outp, m_err);
+		if (argc == 1) fprintf(outp, m_err);
+		else printf(m_err);
 		return;
 	}
 	count = fread(s, sizeof(uc), LINESIZE, inp);
@@ -134,8 +144,10 @@ void compress(FILE* inp, FILE* outp, int argc) {
 		}
 	}
 	if (!(root = build_tree(head, ln))) {
-		fprintf(outp, m_err);
+		if (argc == 1) fprintf(outp, m_err);
+		else printf(m_err);
 		free_list(head);
+		free(s);
 		return;
 	}
 	uc codes[CHARSIZE][MAXLENGTH], code[MAXLENGTH], syms[byte];
@@ -149,11 +161,19 @@ void compress(FILE* inp, FILE* outp, int argc) {
 	}
     print_tree(root, outp, syms, ln);
 	print(codes, s, inp, outp);
+	if (argc > 1) {
+		fseek(inp, 0, SEEK_END);
+		fseek(outp, 0, SEEK_END);
+		i = ftell(inp);
+		ln = ftell(outp);
+		if (i == 1L || ln == 1L) printf("Calculation error. But compressing is ok :)");
+		else printf("Size before compressing: %zd bytes.\nSize after compressing: %zd bytes.\nCompressing ratio: %.3lf.\n", i, ln, ((double)ln) / ((double)i));
+	}
 	free_list(head);
 }
 
 
-List* push(List* head, ui fr, uc sym) {
+List* push(List* head, size_t fr, uc sym) {
 	List* tmp1 = NULL, *tmp2 = NULL;
 	if (head && fr >= head->freq) {
 		for (tmp1 = head; tmp1->next && fr >= tmp1->next->freq; tmp1 = tmp1->next) ;
@@ -321,7 +341,8 @@ void free_list(List* ptr) {
 void decompress(FILE* inp, FILE* outp, int argc) {
 	uc num_extra_bits, degrees[byte], *s = (uc*)malloc(sizeof(uc) * LINESIZE);
 	if (!s) {
-		fprintf(outp, m_err);
+		if (argc == 1) fprintf(outp, m_err);
+		else printf(m_err);
 		return;
 	}
 	size_t j = 0, count, ln;
@@ -333,7 +354,8 @@ void decompress(FILE* inp, FILE* outp, int argc) {
 	else fseek(inp, 0, SEEK_SET);
 	Tree* root = (Tree*)malloc(sizeof(Tree)), *tmp = root;
 	if (!root) {
-		fprintf(outp, m_err);
+		if (argc == 1) fprintf(outp, m_err);
+		else printf(m_err);
 		free(s);
 		return;
 	}
@@ -342,7 +364,8 @@ void decompress(FILE* inp, FILE* outp, int argc) {
 	if (!inp) {
 		free_tree(root);
 		free(s);
-		fprintf(outp, m_err);
+		if (argc == 1) fprintf(outp, m_err);
+		else printf(m_err);
 		return;
 	}
 	count = fread(s, sizeof(uc), LINESIZE, inp);
