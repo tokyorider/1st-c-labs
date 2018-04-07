@@ -8,8 +8,9 @@
 #define f_err "\nFile opening error. Please, make sure that file names are correct and files are located in this directory.\n"
 #define m_err "\nMemory allocation error.\n"
 #define f_err_occ "\nA file error has occured.\n"
-#define help "\nExamples of input: \nhuffman.exe setting file1 file2\nor\nhuffman.exe -h.\nSettings:\n-c to compress file1 into file2;\n-d to decompress file1 into file2.\
-\nPrint -h to display help.\n"
+#define help "\nExamples of input: \nhuffman.exe setting file1 file2\nor\nhuffman.exe -h.\n\nSettings:\n-c to create file2(if it doesn't exist in current directory)\
+ and compress file1 into file2;\n-d to create file2(if it doesn't exist in current directory) and decompress file1 into file2.\
+\nNote: file1 must exist in current directory and file1 can't be the same with file2.\n\Print -h to display help.\n\nCompressing index = (size of archive/size of original file).\n"
 
 #include "stdio.h"
 #include "stdlib.h"
@@ -62,19 +63,22 @@ int main(int argc, char* argv[]) {
 	FILE *inp, *outp;
 	if (argc > 1) {
 		if (argc != 4 || argv[1][0] != '-' || argv[1][1] != 'c' && argv[1][1] != 'd' || argv[1][2] != '\0') {
-			if (argc < 4 && (argc != 2 || argv[1][0] == '-' && (argv[1][1] == 'c' || argv[1][1] == 'd') && argv[1][2] == '\0')) printf("\nToo few arguments.\n");
+			if (argc < 4 && (argc < 2 || argv[1][0] == '-' && (argv[1][1] == 'c' || argv[1][1] == 'd') && argv[1][2] == '\0')) printf("\nToo few arguments.\n");
 			else if (argc > 4 || argv[1][1] == 'h' && argv[1][0] == '-' && argv[1][2] == '\0' && argc > 2) printf("\nToo many arguments.\n");
 			else if (argv[1][0] != '-' || argv[1][1] != 'c' && argv[1][1] != 'd' && argv[1][1] != 'h' || argv[1][2] != '\0') printf("\nWrong setting.\n");
 			printf(help);
 		}
-		else if (!strcmp(argv[2], argv[3])) printf("\nYou can't use the same file for input and output.\n");
 		else {
 			inp = fopen(argv[2], "rb");
 			outp = fopen(argv[3], "wb");
 			if (!(inp && outp)) {
-				if (outp) printf(f_err);
+				printf(f_err);
 				close_files(inp, outp);
 				return 1;
+			}
+			if (!strcmp(argv[2], argv[3])) {
+				printf("\nYou can't use the same file for input and output.\n");
+				return 0;
 			}
 			if (argv[1][1] == 'c') compress(inp, outp, argc);
 			else decompress(inp, outp, argc);
@@ -127,6 +131,10 @@ void compress(FILE* inp, FILE* outp, int argc) {
 		return;
 	}
 	count = fread(s, sizeof(uc), LINESIZE, inp);
+	if (!count) {
+		printf("Size before compressing: 0 bytes.\nSize after compressing: 0 bytes.\nCompressing index: 1\n");
+		return;
+	}
 	while (count) {
 		for (i = 0; i < count; i++) frequences[s[i]]++;
 		ln += count;
@@ -167,7 +175,7 @@ void compress(FILE* inp, FILE* outp, int argc) {
 		i = ftell(inp);
 		ln = ftell(outp);
 		if (i == 1L || ln == 1L) printf("Calculation error. But compressing is ok :)");
-		else printf("Size before compressing: %zd bytes.\nSize after compressing: %zd bytes.\nCompressing ratio: %.3lf.\n", i, ln, ((double)ln) / ((double)i));
+		else printf("Size before compressing: %zd bytes.\nSize after compressing: %zd bytes.\nCompressing index: %.3lf.\n", i, ln, ((double)ln) / ((double)i));
 	}
 	free_list(head);
 }
@@ -348,7 +356,7 @@ void decompress(FILE* inp, FILE* outp, int argc) {
 	size_t j = 0, count, ln;
     int i;
 	fseek(inp, -1, SEEK_END);
-	ln = ftell(inp) - 1;
+	if ((ln = ftell(inp) - 1) == -1) return;
 	fread(&num_extra_bits, sizeof(uc), 1, inp);
 	if (argc == 1) fseek(inp, 3, SEEK_SET);
 	else fseek(inp, 0, SEEK_SET);
