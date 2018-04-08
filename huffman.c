@@ -10,7 +10,7 @@
 #define f_err_occ "\nA file error has occured.\n"
 #define help "\nExamples of input: \nhuffman.exe setting file1 file2\nor\nhuffman.exe -h.\n\nSettings:\n-c to create file2(if it doesn't exist in current directory)\
  and compress file1 into file2;\n-d to create file2(if it doesn't exist in current directory) and decompress file1 into file2.\
-\nNote: file1 must exist in current directory and file1 can't be the same with file2.\n\Print -h to display help.\n\nCompressing index = (size of archive/size of original file).\n"
+\nNote: file1 must exist in current directory and file1 can't be the same with file2.\nPrint -h to display help.\n\nCompressing index = (size of archive/size of original file).\n"
 
 #include "stdio.h"
 #include "stdlib.h"
@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 	inp = fopen("in.txt", "rb");
-    outp = fopen("out.txt", "wb");
+        outp = fopen("out.txt", "wb");
 	if (!(inp && outp)) {
 		if (outp) fprintf(outp, f_err);
 		close_files(inp, outp);
@@ -167,7 +167,7 @@ void compress(FILE* inp, FILE* outp, int argc) {
 		codes[root->sym][0] = 2;
 		codes[root->sym][1] = 0;
 	}
-    print_tree(root, outp, syms, ln);
+        print_tree(root, outp, syms, ln);
 	print(codes, s, inp, outp);
 	if (argc > 1) {
 		fseek(inp, 0, SEEK_END);
@@ -354,7 +354,7 @@ void decompress(FILE* inp, FILE* outp, int argc) {
 		return;
 	}
 	size_t j = 0, count, ln;
-    int i;
+        int i;
 	fseek(inp, -1, SEEK_END);
 	if ((ln = ftell(inp) - 1) == -1) return;
 	fread(&num_extra_bits, sizeof(uc), 1, inp);
@@ -406,7 +406,7 @@ void decompress(FILE* inp, FILE* outp, int argc) {
 			fwrite(&(tmp->sym), sizeof(uc), 1, outp);
 			tmp = root;
 		}
-	    if (s[j % LINESIZE] & degrees[i]) tmp = tmp->right;
+	        if (s[j % LINESIZE] & degrees[i]) tmp = tmp->right;
 		else tmp = tmp->left;
 	}
 	free_tree(root);
